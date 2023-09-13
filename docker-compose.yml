@@ -1,0 +1,28 @@
+version: '3.8'
+
+services: 
+  posts-ms:
+    image: posts-ms
+    build: .
+    container_name: posts-ms
+    ports:
+      - 3001:3001
+    restart: always
+
+  dd-agent: 
+    image: gcr.io/datadoghq/agent:7
+    container_name: dd-agent
+    links:
+      - posts-ms
+    environment:
+      - DD_API_KEY=555c35b37ec810fddfb30ae20fd46a16
+      - DD_SITE=us5.datadoghq.com
+      - DD_APM_ENABLED=true
+      - DD_APM_NON_LOCAL_TRAFFIC=true
+      - DD_SYSTEM_PROBE_ENABLED=true
+      - DD_APM_RECEIVER_SOCKET=/opt/datadog/apm/inject/run/apm.socket
+      - DD_DOGSTATSD_SOCKET=/opt/datadog/apm/inject/run/dsd.socket
+    volumes:
+      - './ddconf.yml:/etc/datadog-agent/conf.d/ddconf.yml'
+      - '/:/host'
+

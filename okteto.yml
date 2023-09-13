@@ -1,0 +1,22 @@
+build:
+  posts-ms:
+    context: .
+    dockerfile: Dockerfile
+
+    
+deploy:
+  compose:
+    file: docker-compose.yml
+
+dev:
+  posts-ms:
+    forward:
+      - 3000:3000
+      - 5432:posts-db:5432
+    sync:
+      - .:/usr/snapmsg-posts
+
+  dd-agent:
+    forward:
+      - 3000:posts-ms:3000
+
