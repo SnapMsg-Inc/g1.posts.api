@@ -6,7 +6,7 @@ app = FastAPI()
 
 @app.get("/")
 async def root():
-	return {"message": "Users microsevice"}
+	return {"message": "Posts microsevice"}
 
 con = psycopg2.connect(
 	database="postsdb",
@@ -16,7 +16,7 @@ con = psycopg2.connect(
 	port= '5432'
 )
 #
-#    Users routes
+#    posts routes
 #
 #app.get("/users")(users.get_users)
 #app.post("/users")(users.create_users)
