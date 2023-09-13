@@ -1,3 +1,5 @@
+name: g1.posts.api
+
 build:
   posts-ms:
     context: .
