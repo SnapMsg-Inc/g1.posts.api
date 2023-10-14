@@ -3,7 +3,7 @@ version: '3.8'
 services: 
   posts-ms:
     depends_on: 
-      - datadog_agent
+      - datadog-agent
     image: posts-ms
     networks:
       - backend 

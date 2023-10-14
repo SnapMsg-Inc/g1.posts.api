@@ -13,12 +13,14 @@ deploy:
 dev:
   posts-ms:
     forward:
-      - 3000:3000
-      - 5432:posts-db:5432
+      - 3001:3001
+      - 27017:posts-db-mongodb:27017
     sync:
       - .:/usr/snapmsg-posts
 
-  dd-agent:
+  datadog-agent:
     forward:
-      - 3000:posts-ms:3000
+      - 8126:8126
+    sync:
+      - ./ddconf.yml:/etc/datadog-agent/conf.d/datadog.yml
 
