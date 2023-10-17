@@ -1,50 +1,77 @@
 # from .database import db
 from .models import *
 import bson
+from typing import List, Union
+import httpx, json
+from fastapi import HTTPException
+from mongoengine import DoesNotExist
+
+async def check_follow_status(requesting_uid: str, target_uid: str) -> bool:
+    url = f"https://users-ms-marioax.cloud.okteto.net/users/{requesting_uid}/follows/{target_uid}"
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url)
+    # Retornar True si el follow existe, False en caso contrario
+    return response.status_code == 200
 
 def create_post(post: Post) -> Post:
-    post.save()  # Guardar el post en la base de datos
-    return post  # Retornar el post guardado
-
-
-
-# async def create_post(uid: str, post_create: PostCreate):
-#     posts_collection = db.get_collection("posts")
-    
-#     # post = User()
-
-#     # check if user `uid` has posted before
-#     # print(posts_collection.find_one({"_id": uid}))
-#     if not await posts_collection.find_one({"uid": uid}):
-#         await posts_collection.insert_one(User(_id=uid).__dict__)
-#         print("adding user")
+    try:
+        post.save()
         
-#     user = await posts_collection.find_one({"uid": uid})
-#     is_public = post_create.is_public
-#     delattr(post_create, "is_public")
-#     post = Post.from_orm(post_create)
+        post.reload()  # Recargar el post para obtener el ID
+    except Exception as e:
+        return (f"Error al guardar el post: {e}")
+        
 
-#     field = "public" if is_public else "private"
-#     # pid = user["lastpid"] + 1
-#     print(user)
+    # Crear la referencia del post en el UserProfile correspondiente
+    try:
+        # Intentar obtener el UserProfile existente
+        user_profile = UserProfile.objects.get(uid=post.uid)
     
-#     # add new post to the dict of posts
-#     await posts_collection.update_one(
-#         {"uid": uid},
-#         {"$set": {
-#                 f"{field}.{bson.objectid.ObjectId()}": post.__dict__
-#             }
-#         })
-#     return True
+    except DoesNotExist:
+        # Crear uno nuevo si no existe
+        user_profile = UserProfile(uid=post.uid).save()
+    
+    # Agregar la referencia del post en la lista correspondiente y guardar
+    if post.is_private:
+        user_profile.update(add_to_set__private=post.id)  # Usar post.id en lugar de post
+    else:
+        user_profile.update(add_to_set__public=post.id)  # Usar post.id en lugar de post
+    
+    user_profile.save()
 
-# async def get_posts(uid: str, public: bool = True, private: bool = False):
-#     posts_collection = db.get_collection("posts")
-#     user = await posts_collection.find_one({"uid": uid})
-#     posts = {}
+    return {"message": "Post creado exitosamente", "post_id": str(post.id)}
 
-#     if public:
-#         posts.update(user["public"])
-#     if private:
-#         posts.update(user["private"])
 
-#     return posts
+def read_posts_by_user_id(uid: str, public: bool, private: bool = False) -> Union[List[PostOut], dict]:
+    
+    try:
+        
+        # Obtener el UserProfile asociado con el UID
+        user_profile = UserProfile.objects.get(uid=uid)
+        
+    except DoesNotExist:
+        return {"error": "Usuario no encontrado"}
+
+    posts = []
+    if public:
+        posts.extend(user_profile.public)
+    
+    # Si private es True, agregar los posts privados a la lista de posts
+    if private:
+        posts.extend(user_profile.private)
+
+    sorted(posts, key=lambda post: post.timestamp, reverse=True)  # Ordenar por timestamp descendente
+
+    # Convertir los posts a PostOut y devolverlos
+    return [convert_post_to_postout(post).dict() for post in posts]
+
+def delete_post(post_id: str):
+    try:
+        post = Post.objects.get(id=post_id)
+    except DoesNotExist:
+        return {"error": "Post no encontrado"}
+    
+    
+    post.delete()
+    
+    return {"message": "Post eliminado exitosamente"}

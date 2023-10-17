@@ -1,50 +1,91 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Query, HTTPException
 from .models import *
 from .crud import *
 import mongoengine 
-from bson import ObjectId
-from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse
+from mongoengine import get_db
+import httpx
 
 app = FastAPI()
 
-# Convertir ObjectId a string y objetos a diccionarios
-def jsonable_encoder_custom(obj):
-    if isinstance(obj, ObjectId):
-        return str(obj)
-    if isinstance(obj, datetime):
-        return obj.isoformat()
-    if isinstance(obj, list):
-        return [jsonable_encoder_custom(e) for e in obj]
-    if isinstance(obj, dict):
-        return {key: jsonable_encoder_custom(value) for key, value in obj.items()}
-    return obj
-
 @app.on_event("startup")
 async def startup_db_client():
-	mongoengine.connect(db='snapmsg', host='localhost', port=27017)
+    mongoengine.connect(db='snapmsg', host='localhost', port=27017)
+    # db = get_db()
+    # for collection in db.list_collection_names():
+    #     db.drop_collection(collection)
+    
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
 	mongoengine.disconnect()
+
 
 @app.get("/")
 async def root():
 	return {"message": "Posts microsevice"}
 
 
-@app.post("/posts")
-async def create_post_endpoint(post_in: PostIn):
-	# Convertir el modelo Pydantic a un modelo MongoEngine
-	
-	post = Post(**post_in.dict())
-	post.save()  # Guardar el post en la base de datos
-	if post.id is None:
-		raise HTTPException(status_code=400, detail="Post could not be created")
-	return JSONResponse(content=jsonable_encoder_custom(post))
+@app.get("/posts", status_code=200)
+async def get_all_posts():
+    
+    posts = Post.objects().all()  # Recupera todos los posts de la base de datos
+    
+    return [convert_post_to_postout(post).dict() for post in posts]
 
-@app.get("/posts")
-async def read_posts():
-    mongo_posts = Post.objects.all()  # Obtener todos los posts
-    pydantic_posts = [PydanticPost.from_mongo(post) for post in mongo_posts]
-    return pydantic_posts  # FastAPI manejará la serialización a JSON
+
+@app.get("/posts/{uid}", response_model=List[PostOut])
+async def read_posts_by_user_id_endpoint(
+    requesting_uid: str,  # Asumiendo que tienes el uid del usuario que hace la solicitud
+    target_uid: str,
+    public: bool = Query(True, alias="public"),
+    private: bool = Query(False, alias="private")
+):
+    is_following = await check_follow_status(requesting_uid, target_uid)
+    
+    # Si no está siguiendo, solo puede ver los posts públicos
+    if not is_following:
+        private = False
+
+    posts_or_error = read_posts_by_user_id(target_uid, public, private)
+
+    if isinstance(posts_or_error, dict) and "error" in posts_or_error:
+        raise HTTPException(status_code=404, detail=posts_or_error["error"])
+
+    return posts_or_error
+     
+
+@app.get("/posts/{uid}/{pid}")
+async def get_post_by_id_endpoint(uid: str, pid: str):
+    
+    try:
+    
+        post = Post.objects.get(id=pid)
+    
+    except DoesNotExist:
+    
+        return {"error": "El post fue eliminado o no existe"}
+    
+    
+    return convert_post_to_postout(post).dict()
+
+
+@app.post("/posts", status_code=201)
+async def create_post_endpoint(post_in: PostIn):
+    
+    post_or_error = create_post(convert_postin_to_post(post_in))
+
+    if isinstance(post_or_error, dict) and "error" in post_or_error:
+        raise HTTPException(status_code=404, detail=post_or_error["error"])
+    
+    return post_or_error
+    
+
+@app.delete("/posts/{pid}")
+async def delete_post_endpoint(pid: str):
+    
+    result = delete_post(pid)
+    
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    
+    return result

@@ -1,45 +1,28 @@
-from mongoengine import Document, StringField, DateTimeField, ListField, BooleanField, IntField
+from mongoengine import ReferenceField, ListField
+from pydantic import BaseModel, Field, validator
 from datetime import datetime
+from mongoengine import Document, StringField, DateTimeField, IntField, BooleanField
 from typing import List
-from pydantic import BaseModel, Field
-from bson import ObjectId
 
+
+# Modelo Pydantic para la entrada de datos
 class PostIn(BaseModel):
     uid: str  # ID del creador
     content: str  # Contenido del post
     hashtags: List[str] = Field(default=[])  # Lista de hashtags
     is_private: bool = Field(default=False)  # Indica si el post es privado
-    # Asumiendo que los campos likes y liked_by serán manejados por la aplicación,
-    # por lo que no necesitan estar en el modelo de entrada.
 
-class PydanticPost(BaseModel):
-    id: str
-    uid: str
-    timestamp: datetime
-    content: str
-    hashtags: List[str] = Field(default=[])
-    is_private: bool = Field(default=False)
-    likes: int = Field(default=0)
-    liked_by: List[str] = Field(default=[])
+    @validator('content')
+    def validate_content(cls, value):
+        if len(value) > 280:  # Ejemplo: limitar el contenido a 280 caracteres
+            raise ValueError("El contenido es demasiado largo")
+        return value
 
-    class Config:
-        json_encoders = {ObjectId: str, datetime: lambda dt: dt.isoformat()}
-
-    @classmethod
-    def from_mongo(cls, mongo_post):
-        return cls(
-            id=str(mongo_post.id),
-            uid=mongo_post.uid,
-            timestamp=mongo_post.timestamp,
-            content=mongo_post.content,
-            hashtags=mongo_post.hashtags,
-            is_private=mongo_post.is_private,
-            likes=mongo_post.likes,
-            liked_by=mongo_post.liked_by
-        )
-
-# Los campos timestamp, likes y liked_by se manejarán automáticamente en el modelo MongoEngine,
-# por lo que no necesitan estar en el modelo de entrada.
+    @validator('hashtags', pre=True)
+    def validate_hashtags(cls, value):
+        if not all(isinstance(item, str) and item.startswith('#') for item in value):
+            raise ValueError("Todos los hashtags deben ser cadenas que comienzan con '#'")
+        return value
 
 class Post(Document):
     uid = StringField(required=True)  # ID del creador
@@ -49,16 +32,48 @@ class Post(Document):
     is_private = BooleanField(default=False)  # Indica si el post es privado
     likes = IntField(default=0)  # Contador de likes
     liked_by = ListField(StringField(), default=list)  # IDs de usuarios que dieron "like"
-    # otros campos relevantes
+
+    meta = {
+        'indexes': [
+            {
+                'fields': [('uid', 1), ('timestamp', -1)],  # Índice compuesto en uid (ascendente) y timestamp (descendente)
+            },
+        ]
+    }
+
+# Modelo Pydantic para la salida JSON
+class PostOut(BaseModel):
+    uid: str
+    timestamp: datetime
+    content: str
+    hashtags: List[str]
+    is_private: bool
+    likes: int
+    liked_by: List[str]
+
+# Función para convertir un modelo Pydantic a un modelo MongoEngine
+def convert_postin_to_post(post_in: PostIn) -> Post:
+    return Post(
+        uid=post_in.uid,
+        content=post_in.content,
+        hashtags=post_in.hashtags,
+        is_private=post_in.is_private
+    )
+
+def convert_post_to_postout(post: Post) -> PostOut:
+    return PostOut(
+        uid=post.uid,
+        timestamp=post.timestamp,
+        content=post.content,
+        hashtags=post.hashtags,
+        is_private=post.is_private,
+        likes=post.likes,
+        liked_by=post.liked_by
+    )
 
 class UserProfile(Document):
-    public = ListField(StringField(), default=list)  # IDs de posts públicos
-    private = ListField(StringField(), default=list)  # IDs de posts privados
-    favs = ListField(StringField(), default=list)  # IDs de posts favoritos
-    # otros campos relevantes
+    uid = StringField(required=True, unique = True)  # ID del usuario
+    public = ListField(ReferenceField(Post), default=list())  # Lista de referencias a posts públicos
+    private = ListField(ReferenceField(Post), default=list())  # Lista de referencias a posts privados
+    favs = ListField(ReferenceField(Post), default=list()) 
 
-class TrendingTopic(Document):
-    hashtag = StringField(required=True)  # Hashtag
-    count = IntField(required=True)  # Frecuencia de ocurrencia
-    last_updated = DateTimeField(default=datetime.utcnow)  # Fecha y hora de la última actualización
-    # otros campos relevantes
