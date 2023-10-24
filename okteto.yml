@@ -17,7 +17,3 @@ dev:
     sync:
       - .:/usr/snapmsg-posts
 
-  datadog-agent:
-    forward:
-      - 8126:8126
-
