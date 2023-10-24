@@ -15,7 +15,7 @@ spec:
         path: "/"
         backend:
           service:
-            name: api 
+            name: posts-api
             port:
               number: 8080
 
