@@ -1,5 +1,10 @@
 from fastapi import FastAPI
 
+import datadog 
+from ddtrace.runtime import RuntimeMetrics
+
+RuntimeMetrics.enable()
+
 app = FastAPI()
 
 @app.get("/")
