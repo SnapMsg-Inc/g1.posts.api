@@ -3,6 +3,3 @@ uvicorn==0.23.2
 datadog==0.47.0
 ddtrace==1.19.0
 pydantic==2.3.0
-SQLAlchemy==2.0.20
-psycopg2==2.9.7
-newrelic==9.0.0
