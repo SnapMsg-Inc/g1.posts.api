@@ -1,9 +1,10 @@
 fastapi==0.103.1
 uvicorn==0.23.2
 datadog==0.47.0
+ddtrace==1.19.0
 pydantic==2.3.0
 psycopg2==2.9.7
 pymongo==4.5.0
 motor==3.3.1
 mongoengine==0.24.2
-```
+

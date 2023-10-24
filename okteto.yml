@@ -1,26 +1,26 @@
 name: g1.posts.api
 
 build:
-  posts-ms:
+  api:
     context: .
-    dockerfile: Dockerfile
-
     
 deploy:
-  compose:
-    file: docker-compose.yml
+   - helm upgrade --install posts-ms chart
+     --set api.image=${OKTETO_BUILD_API_IMAGE}
 
 dev:
-  posts-ms:
+  api:
+	command: ddtrace-run uvicorn src.main:app --host 0.0.0.0 --port 3001 
     forward:
       - 3001:3001
       - 27017:posts-db-mongodb:27017
+      - 8126:datadog-agent:8126
     sync:
       - .:/usr/snapmsg-posts
 
   datadog-agent:
     forward:
       - 8126:8126
-    sync:
-      - ./ddconf.yml:/etc/datadog-agent/conf.d/datadog.yml
+    #sync:
+    #  - ./ddconf.yml:/etc/datadog-agent/conf.d/datadog.yml
 

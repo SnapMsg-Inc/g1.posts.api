@@ -5,6 +5,12 @@ import mongoengine
 from mongoengine import get_db
 import httpx
 
+import datadog 
+from ddtrace.runtime import RuntimeMetrics
+
+RuntimeMetrics.enable()
+
+
 app = FastAPI()
 
 @app.on_event("startup")
