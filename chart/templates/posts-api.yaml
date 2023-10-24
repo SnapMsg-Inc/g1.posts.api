@@ -20,7 +20,7 @@ spec:
       terminationGracePeriodSeconds: 0
       containers:
       - name: posts-api
-        image: {{ index .Values.api.image }}
+        image: {{ .Values.api.image }}
         env:
         - name: DD_TRACE_AGENT_PORT
           value: "8126"
