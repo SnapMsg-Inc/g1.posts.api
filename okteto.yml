@@ -6,7 +6,7 @@ build:
 
 deploy:
    - helm upgrade --install posts-ms chart
-     --set api.image=${OKTETO_BUILD_API_IMAGE}
+     --set api.image=${OKTETO_BUILD_POSTS_API_IMAGE}
 
 dev:
   posts-api:
