@@ -1,79 +1,107 @@
-from mongoengine import ReferenceField, ListField
-from pydantic import BaseModel, Field, validator
+from mongoengine import (
+    DynamicDocument, 
+    Document, 
+    IntField, 
+    ListField, 
+    StringField, 
+    BooleanField,
+    DateTimeField, 
+    ReferenceField,
+    CASCADE 
+)
+from fastapi import Query, Depends
+from typing_extensions import Annotated
+from pydantic import Field, BeforeValidator, model_validator, root_validator
+import pydantic
 from datetime import datetime
-from mongoengine import Document, StringField, DateTimeField, IntField, BooleanField
-from typing import List
+from typing import List, Dict, Any, Optional, Generic, TypeVar
 
 
-# Modelo Pydantic para la entrada de datos
-class PostIn(BaseModel):
-    uid: str  # ID del creador
-    content: str  # Contenido del post
-    hashtags: List[str] = Field(default=[])  # Lista de hashtags
-    is_private: bool = Field(default=False)  # Indica si el post es privado
 
-    @validator('content')
-    def validate_content(cls, value):
-        if len(value) > 280:  # Ejemplo: limitar el contenido a 280 caracteres
-            raise ValueError("El contenido es demasiado largo")
-        return value
-
-    @validator('hashtags', pre=True)
-    def validate_hashtags(cls, value):
-        if not all(isinstance(item, str) and item.startswith('#') for item in value):
-            raise ValueError("Todos los hashtags deben ser cadenas que comienzan con '#'")
-        return value
+'''
+    database models
+'''
 
 class Post(Document):
-    uid = StringField(required=True)  # ID del creador
-    timestamp = DateTimeField(default=datetime.utcnow)  # Fecha y hora del post
-    content = StringField(required=True)  # Contenido del post
-    hashtags = ListField(StringField(), default=list)  # Lista de hashtags
-    is_private = BooleanField(default=False)  # Indica si el post es privado
-    likes = IntField(default=0)  # Contador de likes
-    liked_by = ListField(StringField(), default=list)  # IDs de usuarios que dieron "like"
+    pid: str = StringField(required=True, alias="_id") 
+    uid: str = StringField(required=True)  # author uid
+    text: str = StringField(required=True)
+    media_uri: List[str] = ListField(StringField(), default=[])
+    hashtags: List[str] = ListField(StringField(), default=[])
+    is_private: bool = BooleanField(default=True)
+    likes: int = IntField(default=0)
+    timestamp: datetime = DateTimeField(default=datetime.utcnow)
 
     meta = {
         'indexes': [
             {
-                'fields': [('uid', 1), ('timestamp', -1)],  # Índice compuesto en uid (ascendente) y timestamp (descendente)
+                'fields': [('uid', 1), ('timestamp', -1)],  # compound index 
             },
         ]
     }
 
-# Modelo Pydantic para la salida JSON
-class PostOut(BaseModel):
-    uid: str
+# `ReferenceField` will be automatically dereferenced on access (consider efficency)
+# https://docs.mongoengine.org/apireference.html#mongoengine.fields.ReferenceField
+PostReference = ReferenceField(Post, reverse_delete_rule=CASCADE)
+
+class User(Document):
+    uid: str = StringField(required=True, unique=True)
+    public = ListField(PostReference, default=[])
+    private = ListField(PostReference, default=[])
+    favs = ListField(PostReference, default=[])
+    feed = ListField(PostReference, default=[])
+
+
+'''
+    API models
+'''
+class BaseModel(pydantic.BaseModel): # BaseModel wrapper
+    @model_validator(mode="after")
+    def exclude_none(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        for k, v in values.dict().items():
+            if v is None:
+                delattr(values, k)
+        return values   
+
+def text_validator(t):
+    assert len(t) <= 300, "text is larger than 300 chars"
+    return t
+
+def hashtag_validator(h):
+    assert h.startswith('#') or '-' in h, "invalid hashtag format"
+    return h
+
+
+Text = Annotated[str, BeforeValidator(text_validator)] 
+Hashtag = Annotated[str, BeforeValidator(hashtag_validator)]
+
+class PostCreate(BaseModel):
+    uid: str     # author's uid
+    text: Text
+    media_uri: List[str]
+    hashtags: List[Hashtag]
+    is_private: bool = True
+
+
+class PostUpdate(BaseModel):
+    text: Optional[Text] = None
+    media_uri: Optional[str] = None
+    hashtags: Optional[List[Hashtag]] = None
+    is_private: Optional[bool] = None
+
+
+class PostQuery(BaseModel):
+#    pid: Optional[str] = None
+    uid: Optional[str] = None  # author's uid
+    text: Optional[Text] = None
+    hashtag: List[Hashtag] = Field(Query([]))
+    private: bool = False
+    public: bool = True # show the publics by default
+   
+ 
+class PostResponse(PostCreate):
+    pid: str
+    likes: int = 0
     timestamp: datetime
-    content: str
-    hashtags: List[str]
-    is_private: bool
-    likes: int
-    liked_by: List[str]
 
-# Función para convertir un modelo Pydantic a un modelo MongoEngine
-def convert_postin_to_post(post_in: PostIn) -> Post:
-    return Post(
-        uid=post_in.uid,
-        content=post_in.content,
-        hashtags=post_in.hashtags,
-        is_private=post_in.is_private
-    )
-
-def convert_post_to_postout(post: Post) -> PostOut:
-    return PostOut(
-        uid=post.uid,
-        timestamp=post.timestamp,
-        content=post.content,
-        hashtags=post.hashtags,
-        is_private=post.is_private,
-        likes=post.likes,
-        liked_by=post.liked_by
-    )
-
-class UserProfile(Document):
-    uid = StringField(required=True, unique = True)  # ID del usuario
-    public = ListField(ReferenceField(Post), default=list())  # Lista de referencias a posts públicos
-    private = ListField(ReferenceField(Post), default=list())  # Lista de referencias a posts privados
-    favs = ListField(ReferenceField(Post), default=list()) 
 

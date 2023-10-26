@@ -1,97 +1,112 @@
-from fastapi import FastAPI, Query, HTTPException
-from .models import *
-from .crud import *
-import mongoengine 
-from mongoengine import get_db
-import httpx
+from fastapi import FastAPI, Query, Depends, Request, HTTPException
+from fastapi.responses import JSONResponse
+from typing import List, Annotated, Optional
+from .models import PostCreate, PostQuery, PostUpdate, PostResponse
+from . import crud 
 
-import datadog 
+import mongoengine
+'''
+import datadog
 from ddtrace.runtime import RuntimeMetrics
 
 RuntimeMetrics.enable()
-
-
+'''
 app = FastAPI()
 
+
+@app.exception_handler(Exception)
+async def error_handler(req: Request, exc):
+    print("error")
+    detail = "internal server error"
+    if req.method == "POST":
+        detail = "couldnt create resource"
+    elif req.method == "DELETE":
+        detail = "couldnt delete resource"
+    elif req.method == "PATCH":
+        detail = "couldnt update resource"
+    return JSONResponse(status_code=400, content={"detail" : detail})
+            
+
 @app.on_event("startup")
-async def startup_db_client():
-    mongoengine.connect(db='snapmsg', host='localhost', port=27017)
-    # db = get_db()
-    # for collection in db.list_collection_names():
-    #     db.drop_collection(collection)
-    
+def init_db_client():
+    config = {
+        "db" : "postsdb",
+        "host" : "posts-db",
+        "port" : 27017,
+        "username" : "snapmsg",
+        "password" : "snapmsg",
+        "connectTimeoutMS" : 2000,
+        "serverSelectionTimeoutMS" : 2000
+    }
+    mongoengine.connect(**config)
 
 @app.on_event("shutdown")
-async def shutdown_db_client():
-	mongoengine.disconnect()
+def shutdown_db_client():
+    mongoengine.disconnect()
 
 
 @app.get("/")
 async def root():
-	return {"message": "Posts microsevice"}
-
-
-@app.get("/posts", status_code=200)
-async def get_all_posts():
-    
-    posts = Post.objects().all()  # Recupera todos los posts de la base de datos
-    
-    return [convert_post_to_postout(post).dict() for post in posts]
-
-
-@app.get("/posts/{uid}", response_model=List[PostOut])
-async def read_posts_by_user_id_endpoint(
-    requesting_uid: str,  # Asumiendo que tienes el uid del usuario que hace la solicitud
-    target_uid: str,
-    public: bool = Query(True, alias="public"),
-    private: bool = Query(False, alias="private")
-):
-    is_following = await check_follow_status(requesting_uid, target_uid)
-    
-    # Si no está siguiendo, solo puede ver los posts públicos
-    if not is_following:
-        private = False
-
-    posts_or_error = read_posts_by_user_id(target_uid, public, private)
-
-    if isinstance(posts_or_error, dict) and "error" in posts_or_error:
-        raise HTTPException(status_code=404, detail=posts_or_error["error"])
-
-    return posts_or_error
-     
-
-@app.get("/posts/{uid}/{pid}")
-async def get_post_by_id_endpoint(uid: str, pid: str):
-    
-    try:
-    
-        post = Post.objects.get(id=pid)
-    
-    except DoesNotExist:
-    
-        return {"error": "El post fue eliminado o no existe"}
-    
-    
-    return convert_post_to_postout(post).dict()
+    return {"message": "posts microsevice"}
 
 
 @app.post("/posts", status_code=201)
-async def create_post_endpoint(post_in: PostIn):
-    
-    post_or_error = create_post(convert_postin_to_post(post_in))
+async def create_post(*, post: PostCreate):
+    await crud.create_post(post)
+    return {"message" : "post created"}
 
-    if isinstance(post_or_error, dict) and "error" in post_or_error:
-        raise HTTPException(status_code=404, detail=post_or_error["error"])
-    
-    return post_or_error
-    
+
+@app.get("/posts", response_model=List[PostResponse])
+async def get_posts(*,
+                    post: PostQuery = Depends(), 
+                    limit: int = Query(default=100, ge=0, le=100), 
+                    page: int = Query(default=0, ge=0)):
+    return await crud.read_posts(post, limit, page)
+
+@app.get("/posts/{pid}", response_model=PostResponse)
+async def get_post(*, pid: str):
+    return await crud.read_post(pid)
+
+
+@app.patch("/posts/{pid}")
+async def update_post(*, pid: str, post: Optional[PostUpdate] = None):
+    if not post:
+        return {"message", "nothing to update"}
+    #await crud.update_post(uid, pid, post)
+    print(post)
+    return {"message" : "post updated"}
+
 
 @app.delete("/posts/{pid}")
-async def delete_post_endpoint(pid: str):
-    
-    result = delete_post(pid)
-    
-    if "error" in result:
-        raise HTTPException(status_code=404, detail=result["error"])
-    
-    return result
+async def delete_post(*, pid: str):
+    #await crud.delete_post(pid)
+    return {"message" : "post deleted"}
+
+
+@app.get("/posts/{uid}/recommended")#, response_model=List[Post])
+async def get_recommended(*,
+                          uid: str, 
+                          limit: int = Query(default=100, ge=0, le=100), 
+                          page: int = Query(default=0, ge=0)):
+    #return await crud.get_recommended(uid, limit, page)
+    pass
+
+
+@app.post("/posts/{uid}/fav/{pid}")
+async def add_fav(*, uid: str, otheruid: str, pid: str):
+    #await crud.add_fav(uid, otheruid, pid)
+    return {"message" : "fav added"}
+
+
+@app.get("/posts/{uid}/fav")#, response_model=List[Post])
+async def get_favs(*,
+                   uid: str,
+                   limit: int = Query(default=100, ge=0, le=100), 
+                   page: int = Query(default=0, ge=0)):
+
+    #return await crud.get_favs(uid, limit, page)
+    pass
+
+
+#@app.post("/posts/{uid}/fav/{otheruid}/{pid}")
+
