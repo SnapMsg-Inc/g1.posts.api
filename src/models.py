@@ -29,8 +29,8 @@ class Post(Document):
     media_uri: List[str] = ListField(StringField(), default=[])
     hashtags: List[str] = ListField(StringField(), default=[])
     is_private: bool = BooleanField(default=True)
-    likes: int = IntField(default=0)
     timestamp: datetime = DateTimeField(default=datetime.utcnow)
+    likes: List[str] = ListField(StringField(), default=[])
 
     meta = {
         'indexes': [
@@ -67,6 +67,7 @@ class User(Document):
 class BaseModel(pydantic.BaseModel): # BaseModel wrapper
     @model_validator(mode="after")
     def exclude_unset(cls, values: Any) -> Any:
+        print(values)
         items = values.dict().items()
         for k, v in items:
             if v is None or (isinstance(v, Iterable) and not v):
@@ -109,7 +110,7 @@ class PostQuery(BaseModel):
 #    pid: Optional[str] = None
     uid: Optional[str] = None  # author's uid
     text: Optional[Text] = None
-    hashtag: List[Hashtag] = Field(Query([]))
+    hashtags: List[Hashtag] = Field(Query([]))
     private: bool = False
     public: bool = True # show the publics by default
    

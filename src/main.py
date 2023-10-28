@@ -119,7 +119,7 @@ async def get_favs(*,
                    uid: str,
                    limit: int = Query(default=100, ge=0, le=100), 
                    page: int = Query(default=0, ge=0)):
-    return await crud.get_favs(uid, limit, page)
+    return await crud.read_favs(uid, limit, page)
 
 
 @app.delete("/posts/{uid}/favs/{pid}")

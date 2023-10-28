@@ -1,10 +1,21 @@
 # from .database import db
 from .models import User, Post, PostCreate, PostQuery, PostUpdate, PostResponse
 from typing import List, Dict, Any 
+from collections.abc import Iterable
 from mongoengine import DoesNotExist
 
 import logging
 
+
+def get_mongo_query(post_query: PostQuery) -> Dict[str, Any]:
+    mongo_query = {}
+    for k, v in post_query.model_dump().items():
+        if isinstance(v, Iterable):
+            for item in v:
+                mongo_query[f"{k}__contains"] = item
+        else:
+            mongo_query[f"{k}__contains"] = v
+    return mongo_query
 
 
 async def get_user(uid: str):
@@ -16,11 +27,13 @@ async def get_user(uid: str):
 
 
 async def populate_feed(post: Post):
-    user = User.objects(uid=post.uid).as_pymongo().get()
-    to_populate = user["followers"]
+    # user = User.objects(uid=post.uid).as_pymongo().get()
+    user = await get_user(post.uid)
+    to_populate = user.followers
     
-    for _id in to_populate:
-        db_user = await get_user(_id)
+    for db_user in user.followers:
+        # db_user = await get_user(_id)
+        # establish a limit in length of feed
         db_user.update(add_to_set__feed=post)
         db_user.save()
 
@@ -44,20 +57,22 @@ async def read_post(pid: str) -> Dict[str, Any]:
     return Post.objects.as_pymongo().get(pk=pid)
 
 
-async def read_posts(post: PostQuery, limit: int, page: int) -> List[Dict[str, Any]]:
-    public = post.__dict__.pop("public")
-    private = post.__dict__.pop("private")
-    print(f"[INFO] posts: {post.dict()}")
+async def read_posts(post_query: PostQuery, limit: int, page: int) -> List[Dict[str, Any]]:
+    public = post_query.__dict__.pop("public")
+    private = post_query.__dict__.pop("private")
 
     if public and private:
         limit /= 2
     FROM, TO = limit * page, limit * (page + 1)
     
+    query = get_mongo_query(post_query)
+    print(f"[INFO] posts: {query}")
+
     db_posts = [] 
     if public:
-        db_posts += Post.objects(is_private=False, **post.model_dump())[FROM:TO].as_pymongo()
+        db_posts += Post.objects.filter(is_private=False, **query)[FROM:TO].as_pymongo()
     if private:
-        db_posts += Post.objects(is_private=True, **post.model_dump())[FROM:TO]
+        db_posts += Post.objects.filter(is_private=True, **query)[FROM:TO].as_pymongo()
 
     return db_posts
 
@@ -67,7 +82,8 @@ async def update_post(pid: str, post: PostUpdate):
 
 
 async def delete_post(pid: str):
-    pass
+    db_post = Post.objects(id=pid).get()
+    db_post.delete()
 
 
 async def subscribe_feed(uid: str, otheruid: str):
@@ -78,12 +94,23 @@ async def subscribe_feed(uid: str, otheruid: str):
     otheruser.save()
 
 
+async def unsubscribe_feed(uid: str, otheruid: str):
+    user = await get_user(uid)
+    otheruser = await get_user(otheruid)
+    otheruser.update(pull__followers=user)
+    otheruser.save()
+
+
 async def get_feed(uid: str, limit: int, page: int) -> List[Dict[str, Any]]:
-    user = User.objects.as_pymongo().get(uid=uid)
+    # user = User.objects.as_pymongo().get(uid=uid)
+    FROM, TO = limit * page, limit * (page + 1)
+    
+    user = await get_user(uid)
     feed = []
-    for pid in user["feed"]:
-        print(pid)
-        feed.append(Post.objects(id=pid).as_pymongo().get())
+
+    for post in user.feed:
+        feed.append(post.to_mongo().to_dict())
+
     return feed 
 
 
@@ -95,7 +122,7 @@ async def add_favs(uid: str, pid: str):
     pass
 
 
-async def get_favs(uid: str, limit: int, page: int) -> List[Dict[str, Any]]:
+async def read_favs(uid: str, limit: int, page: int) -> List[Dict[str, Any]]:
     pass
 
 
