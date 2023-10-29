@@ -6,6 +6,16 @@ from mongoengine import DoesNotExist
 
 import logging
 
+class CRUDException(Exception):
+    message: str = "API error: "
+
+    def __init__(self, message):
+        self.message += message
+
+    def __str__(self):
+        return self.message
+
+
 
 def get_mongo_query(post_query: PostQuery) -> Dict[str, Any]:
     mongo_query = {}
@@ -66,7 +76,6 @@ async def read_posts(post_query: PostQuery, limit: int, page: int) -> List[Dict[
     FROM, TO = limit * page, limit * (page + 1)
     
     query = get_mongo_query(post_query)
-    print(f"[INFO] posts: {query}")
 
     db_posts = [] 
     if public:
@@ -74,6 +83,7 @@ async def read_posts(post_query: PostQuery, limit: int, page: int) -> List[Dict[
     if private:
         db_posts += Post.objects.filter(is_private=True, **query)[FROM:TO].as_pymongo()
 
+    print(f"[INFO] posts: {db_posts}")
     return db_posts
 
 
@@ -90,6 +100,13 @@ async def subscribe_feed(uid: str, otheruid: str):
     # save a reference to `uid` in `otheruid`, in order to populate feed 
     user = await get_user(uid)
     otheruser = await get_user(otheruid)
+
+    if user in otheruser.followers:
+        raise CRUDException("subscription already exist")
+
+    to_push = otheruser.public + otheruser.private
+    user.feed += to_push
+    user.save()
     otheruser.update(add_to_set__followers=user)
     otheruser.save()
 
@@ -97,37 +114,61 @@ async def subscribe_feed(uid: str, otheruid: str):
 async def unsubscribe_feed(uid: str, otheruid: str):
     user = await get_user(uid)
     otheruser = await get_user(otheruid)
-    otheruser.update(pull__followers=user)
+    
+    if user not in otheruser.followers:
+        raise CRUDException("subscription doesnt exist")
+
+    to_pull = otheruser.public + otheruser.private
+    user.update(pull_all__feed=to_pull)
+    user.save()
+    otheruser.followers.append(user)
+    #otheruser.update(pull__followers=user)
     otheruser.save()
 
 
 async def get_feed(uid: str, limit: int, page: int) -> List[Dict[str, Any]]:
-    # user = User.objects.as_pymongo().get(uid=uid)
     FROM, TO = limit * page, limit * (page + 1)
-    
     user = await get_user(uid)
     feed = []
 
-    for post in user.feed:
+    for post in user.feed[FROM:TO]:
         feed.append(post.to_mongo().to_dict())
 
+    feed.sort(key=lambda x: x["timestamp"])
     return feed 
 
 
 async def get_recommended(uid: str, limit: int, page: int) -> List[Dict[str, Any]]:
-    pass
+    return [] 
 
 
 async def add_favs(uid: str, pid: str):
-    pass
+    user = await get_user(uid)
+    post = Post.objects(id=pid).get()
+    if post in user.favs:
+        raise CRUDException("post already in favs")
+    user.favs.append(post)
+    user.save()
+    print(user.to_mongo())
 
 
 async def read_favs(uid: str, limit: int, page: int) -> List[Dict[str, Any]]:
-    pass
+    FROM, TO = limit * page, limit * (page + 1)
+    user = await get_user(uid)
+    favs = []
+    print(user.to_mongo())
+    for post in user.favs[FROM:TO]:
+        favs.append(post.to_mongo().to_dict())
+    return favs
 
 
 async def delete_favs(uid: str, pid: str):
-    pass
+    user = await get_user(uid)
+    post = Post.objects(id=pid).get()
+    if post not in user.favs:
+        raise CRUDException("post not in favs")
+    user.favs.remove(post)
+    user.save()
 
 
 async def like_post(uid: str, pid: str):
@@ -138,42 +179,3 @@ async def unlike_post(uid: str, pid: str):
     pass
 
 
-
-'''
-def read_posts_by_user_id(uid: str,
-                          public: bool,
-                          private: bool = False) -> Union[List[PostOut], dict]:
-
-    try:
-
-        # Obtener el UserProfile asociado con el UID
-        user_profile = UserProfile.objects.get(uid=uid)
-
-    except DoesNotExist:
-        return {"error": "Usuario no encontrado"}
-
-    posts = []
-    if public:
-        posts.extend(user_profile.public)
-
-    # Si private es True, agregar los posts privados a la lista de posts
-    if private:
-        posts.extend(user_profile.private)
-
-    sorted(posts, key=lambda post: post.timestamp,
-           reverse=True)  # Ordenar por timestamp descendente
-
-    # Convertir los posts a PostOut y devolverlos
-    return [convert_post_to_postout(post).dict() for post in posts]
-
-
-def delete_post(post_id: str):
-    try:
-        post = Post.objects.get(id=post_id)
-    except DoesNotExist:
-        return {"error": "Post no encontrado"}
-
-    post.delete()
-
-    return {"message": "Post eliminado exitosamente"}
-'''

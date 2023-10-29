@@ -30,7 +30,7 @@ class Post(Document):
     hashtags: List[str] = ListField(StringField(), default=[])
     is_private: bool = BooleanField(default=True)
     timestamp: datetime = DateTimeField(default=datetime.utcnow)
-    likes: List[str] = ListField(StringField(), default=[])
+    likes: int = IntField(default=0)
 
     meta = {
         'indexes': [
@@ -39,7 +39,6 @@ class Post(Document):
             },
         ]
     }
-    __auto_convert = True
         
 
 # `ReferenceField` will be automatically dereferenced on access (consider efficency)

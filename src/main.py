@@ -16,14 +16,9 @@ app = FastAPI()
 
 @app.exception_handler(Exception)
 async def error_handler(req: Request, exc):
-    print("error")
     detail = "internal server error"
-    if req.method == "POST":
-        detail = "couldnt create resource"
-    elif req.method == "DELETE":
-        detail = "couldnt delete resource"
-    elif req.method == "PATCH":
-        detail = "couldnt update resource"
+    if isinstance(exc, crud.CRUDException):
+        detail = str(exc)
     return JSONResponse(status_code=400, content={"detail" : detail})
             
 
@@ -100,6 +95,12 @@ async def get_feed(*,
     return await crud.get_feed(uid, limit, page)
 
 
+@app.delete("/posts/{uid}/feed/{otheruid}")
+async def unsubscribe_feed(*, uid: str, otheruid: str):
+    await crud.unsubscribe_feed(uid, otheruid)
+    return {"message" : "subscription removed"}
+
+
 @app.get("/posts/{uid}/recommended", response_model=List[PostResponse])
 async def get_recommended(*,
                           uid: str, 
@@ -111,7 +112,7 @@ async def get_recommended(*,
 @app.post("/posts/{uid}/favs/{pid}")
 async def add_favs(*, uid: str, pid: str):
     await crud.add_favs(uid, pid)
-    return {"message" : "fav added"}
+    return {"message" : "post added to favs"}
 
 
 @app.get("/posts/{uid}/favs", response_model=List[PostResponse])
@@ -124,7 +125,8 @@ async def get_favs(*,
 
 @app.delete("/posts/{uid}/favs/{pid}")
 async def delete_favs(*, uid: str, pid: str):
-    return await crud.delete_favs(uid, pid)
+    await crud.delete_favs(uid, pid)
+    return {"message" : "post deleted from favs"}
 
 
 @app.post("/posts/{uid}/likes/{pid}")
