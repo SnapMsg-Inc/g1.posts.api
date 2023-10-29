@@ -131,11 +131,13 @@ async def delete_favs(*, uid: str, pid: str):
 
 @app.post("/posts/{uid}/likes/{pid}")
 async def like_post(*, uid: str, pid: str):
-    pass
+    await crud.like_post(uid, pid)
+    return {"message" : "post liked"}
 
 
 @app.delete("/posts/{uid}/likes/{pid}")
 async def unlike_post(*, uid: str, pid: str):
-    pass
+    await crud.unlike_post(uid, pid)
+    return {"message" : "post unliked"}
 
 

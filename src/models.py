@@ -11,8 +11,7 @@ from mongoengine import (
 )
 from fastapi import Query, Depends
 from typing_extensions import Annotated
-from pydantic import Field, BeforeValidator, AfterValidator, model_validator
-import pydantic
+from pydantic import BaseModel, Field, BeforeValidator, AfterValidator, model_validator
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Generic, TypeVar
 from collections.abc import Iterable
@@ -23,20 +22,20 @@ from collections.abc import Iterable
 '''
 
 class Post(Document):
-    #pid: str = Field(required=True, alias="_id") 
     uid: str = StringField(required=True)  # author uid
+    nick: str = StringField(required=True)  # author nickname
     text: str = StringField(required=True)
     media_uri: List[str] = ListField(StringField(), default=[])
     hashtags: List[str] = ListField(StringField(), default=[])
     is_private: bool = BooleanField(default=True)
     timestamp: datetime = DateTimeField(default=datetime.utcnow)
-    likes: int = IntField(default=0)
+    likes: int = IntField(default=0, min_value=0)
 
     meta = {
         'indexes': [
             {
                 'fields': [('uid', 1), ('timestamp', -1)],  # compound index 
-            },
+            }
         ]
     }
         
@@ -47,9 +46,6 @@ PostReference = ReferenceField(Post, reverse_delete_rule=CASCADE)
 UserReference = ReferenceField('User', reverse_delete_rule=CASCADE)
 #PostListReference = ReferenceField('PostList', reverse_delete=CASCADE)
 
-#class PostList(Document):
-#    posts: ListField(PostReference, default=[])
-
 
 class User(Document):
     uid: str = StringField(required=True, unique=True)
@@ -58,14 +54,16 @@ class User(Document):
     favs = ListField(PostReference, default=[]) 
     feed = ListField(PostReference, default=[])  # subscriptions to different user posts
     followers = ListField(UserReference, default=[])
+    liked = ListField(PostReference, default=[])
 
 
 '''
     API models
 '''
-class BaseModel(pydantic.BaseModel): # BaseModel wrapper
+class BaseModelOptional(BaseModel): # BaseModel wrapper
     @model_validator(mode="after")
     def exclude_unset(cls, values: Any) -> Any:
+        # remove unset attributes
         print(values)
         items = values.dict().items()
         for k, v in items:
@@ -92,22 +90,23 @@ PID = Annotated[str, BeforeValidator(lambda pid: str(pid))]
 
 class PostCreate(BaseModel):
     uid: str     # author's uid
+    nick: str    # author's nickname
     text: Text
     media_uri: List[str] = []
     hashtags: List[Hashtag] = []
     is_private: bool = True
 
 
-class PostUpdate(BaseModel):
+class PostUpdate(BaseModelOptional):
     text: Optional[Text] = None
     media_uri: Optional[str] = None
     hashtags: Optional[List[Hashtag]] = None
     is_private: Optional[bool] = None
 
 
-class PostQuery(BaseModel):
-#    pid: Optional[str] = None
+class PostQuery(BaseModelOptional):
     uid: Optional[str] = None  # author's uid
+    nick: Optional[str] = None    # author's nickname
     text: Optional[Text] = None
     hashtags: List[Hashtag] = Field(Query([]))
     private: bool = False

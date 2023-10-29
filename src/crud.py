@@ -6,6 +6,8 @@ from mongoengine import DoesNotExist
 
 import logging
 
+MAX_FEED = 250
+
 class CRUDException(Exception):
     message: str = "API error: "
 
@@ -37,30 +39,28 @@ async def get_user(uid: str):
 
 
 async def populate_feed(post: Post):
-    # user = User.objects(uid=post.uid).as_pymongo().get()
     user = await get_user(post.uid)
-    to_populate = user.followers
     
-    for db_user in user.followers:
-        # db_user = await get_user(_id)
+    for follower in user.followers:
         # establish a limit in length of feed
-        db_user.update(add_to_set__feed=post)
-        db_user.save()
+        if len(follower.feed) > MAX_FEED:
+            follower.feed.pop(0)
+        follower.feed.append(post)
+        follower.save()
 
 
-async def create_post(post: PostCreate):
-    db_post = Post(**post.model_dump())
-    db_post.save()
-    db_post.reload() 
+async def create_post(post_create: PostCreate):
+    post = Post(**post_create.model_dump())
+    post.save()
+    post.reload() 
     user = await get_user(post.uid)
 
     if post.is_private:
-        user.update(add_to_set__private=db_post)
+        user.private.append(post)
     else:
-        user.update(add_to_set__public=db_post)
+        user.public.append(post)
     user.save()
-
-    return db_post
+    return post
 
 
 async def read_post(pid: str) -> Dict[str, Any]:
@@ -68,6 +68,7 @@ async def read_post(pid: str) -> Dict[str, Any]:
 
 
 async def read_posts(post_query: PostQuery, limit: int, page: int) -> List[Dict[str, Any]]:
+    print(f"[INFO] posts: {post_query.__dict__}")
     public = post_query.__dict__.pop("public")
     private = post_query.__dict__.pop("private")
 
@@ -88,12 +89,16 @@ async def read_posts(post_query: PostQuery, limit: int, page: int) -> List[Dict[
 
 
 async def update_post(pid: str, post: PostUpdate):
-    pass
+    try:
+        # post = Post.objects(id=pid).get()
+        Post.objects(id=pid).get().update(**post.model_dump())
+    except DoesNotExist:
+        raise CRUDException("post doesnt exist")
 
 
 async def delete_post(pid: str):
-    db_post = Post.objects(id=pid).get()
-    db_post.delete()
+    post = Post.objects(id=pid).get()
+    post.delete()
 
 
 async def subscribe_feed(uid: str, otheruid: str):
@@ -101,13 +106,16 @@ async def subscribe_feed(uid: str, otheruid: str):
     user = await get_user(uid)
     otheruser = await get_user(otheruid)
 
+    if uid == otheruid:
+        raise CRUDException("cannot subscribe to yourself")
+
     if user in otheruser.followers:
         raise CRUDException("subscription already exist")
-
+    
     to_push = otheruser.public + otheruser.private
     user.feed += to_push
     user.save()
-    otheruser.update(add_to_set__followers=user)
+    otheruser.followers.append(user)
     otheruser.save()
 
 
@@ -121,7 +129,7 @@ async def unsubscribe_feed(uid: str, otheruid: str):
     to_pull = otheruser.public + otheruser.private
     user.update(pull_all__feed=to_pull)
     user.save()
-    otheruser.followers.append(user)
+    otheruser.followers.remove(user)
     #otheruser.update(pull__followers=user)
     otheruser.save()
 
@@ -172,10 +180,25 @@ async def delete_favs(uid: str, pid: str):
 
 
 async def like_post(uid: str, pid: str):
-    pass
+    user = await get_user(uid)
+    post = Post.objects(id=pid).get()
+    if post in user.liked:
+        raise CRUDException("like already exist")
+    
+    post.likes += 1
+    user.liked.append(post)
+    post.save()
+    user.save()
 
 
 async def unlike_post(uid: str, pid: str):
-    pass
+    user = await get_user(uid)
+    post = Post.objects(id=pid).get()
+    if post not in user.liked:
+        raise CRUDException("like doesnt exist")
 
+    post.likes -= 1
+    user.liked.remove(post)
+    post.save()
+    user.save()
 
