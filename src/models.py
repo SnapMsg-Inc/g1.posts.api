@@ -7,7 +7,7 @@ from mongoengine import (
     DateTimeField, 
     ReferenceField,
     EmbeddedDocumentField,
-    CASCADE 
+    PULL 
 )
 from fastapi import Query, Depends
 from typing_extensions import Annotated
@@ -42,8 +42,8 @@ class Post(Document):
 
 # `ReferenceField` will be automatically dereferenced on access (consider efficency)
 # https://docs.mongoengine.org/apireference.html#mongoengine.fields.ReferenceField
-PostReference = ReferenceField(Post, reverse_delete_rule=CASCADE)
-UserReference = ReferenceField('User', reverse_delete_rule=CASCADE)
+PostReference = ReferenceField(Post, reverse_delete_rule=PULL)
+UserReference = ReferenceField('User', reverse_delete_rule=PULL)
 #PostListReference = ReferenceField('PostList', reverse_delete=CASCADE)
 
 

@@ -34,6 +34,7 @@ async def get_user(uid: str):
     try:
         user = User.objects.get(uid=uid)
     except DoesNotExist:
+        print("[DEBUG] user doesnt exists")
         user = User(uid=uid).save() # init one if does not exist
     return user 
 
@@ -147,6 +148,8 @@ async def get_feed(uid: str, limit: int, page: int) -> List[Dict[str, Any]]:
 
 
 async def get_recommended(uid: str, limit: int, page: int) -> List[Dict[str, Any]]:
+    user = await get_user(uid)
+    print(f"[DEBUG] {user.public}")
     return [] 
 
 
@@ -203,10 +206,14 @@ async def unlike_post(uid: str, pid: str):
     user.save()
 
 async def is_author(uid: str, pid: str):
-    user = await get_user(uid)
-    post = Post.objects(id=pid).get()
+    try: 
+        user = await get_user(uid)
+        post = Post.objects(id=pid).get()
 
-    if post in user.public or post in user.private:
-        return True
-    
-    return False
+        if post in user.public or post in user.private:
+            return True
+
+        return False
+    except DoesNotExist:
+        raise CRUDException("post doesnt exist")
+
