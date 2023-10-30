@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query, Depends, Request, HTTPException, BackgroundTasks
+from fastapi import FastAPI, Query, Depends, Request, HTTPException 
 from fastapi.responses import JSONResponse
 from typing import List, Annotated, Optional
 from .models import Post, PostCreate, PostQuery, PostUpdate, PostResponse
@@ -48,9 +48,8 @@ async def root():
 
 
 @app.post("/posts", status_code=201)
-async def create_post(*, post: PostCreate, bg_tasks: BackgroundTasks):
+async def create_post(*, post: PostCreate):
     db_post = await crud.create_post(post)
-    bg_tasks.add_task(crud.populate_feed, db_post)
     return {"message" : "post created"}
 
 
