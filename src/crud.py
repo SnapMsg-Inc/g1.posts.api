@@ -99,8 +99,6 @@ async def delete_post(pid: str):
 
 
 async def get_recommended(uid: str, limit: int, page: int) -> List[Dict[str, Any]]:
-    user = await get_user(uid)
-    print(f"[DEBUG] {user.public}")
     return [] 
 
 
