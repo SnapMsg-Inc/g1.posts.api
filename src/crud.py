@@ -2,7 +2,9 @@
 from .models import User, Post, PostCreate, PostQuery, PostUpdate, PostResponse
 from typing import List, Dict, Any 
 from collections.abc import Iterable
+from mongoengine.queryset.visitor import Q
 from mongoengine import DoesNotExist
+
 
 import logging
 
@@ -20,14 +22,19 @@ class CRUDException(Exception):
 
 
 def get_mongo_query(post_query: PostQuery) -> Dict[str, Any]:
-    mongo_query = {}
+    query = Q() 
     for k, v in post_query.model_dump().items():
-        if isinstance(v, Iterable):
-            for item in v:
-                mongo_query[f"{k}__contains"] = item
+        if isinstance(v, str):
+            query &= Q(**{f"{k}__contains" : v})
+        elif isinstance(v, list):
+            expr = map(lambda item: f"Q({k}__contains='{item}')", v)
+            print(f"[INFO] expr: {expr}")
+            query &= (eval(" | ".join(expr)))
         else:
-            mongo_query[f"{k}__contains"] = v
-    return mongo_query
+            # ignore other type than list or str
+            pass
+
+    return query 
 
 
 async def get_user(uid: str):
@@ -37,17 +44,6 @@ async def get_user(uid: str):
         print("[DEBUG] user doesnt exists")
         user = User(uid=uid).save() # init one if does not exist
     return user 
-
-
-async def populate_feed(post: Post):
-    user = await get_user(post.uid)
-    
-    for follower in user.followers:
-        # establish a limit in length of feed
-        if len(follower.feed) > MAX_FEED:
-            follower.feed.pop(0)
-        follower.feed.append(post)
-        follower.save()
 
 
 async def create_post(post_create: PostCreate):
@@ -78,12 +74,12 @@ async def read_posts(post_query: PostQuery, limit: int, page: int) -> List[Dict[
     FROM, TO = limit * page, limit * (page + 1)
     
     query = get_mongo_query(post_query)
-
     db_posts = [] 
+
     if public:
-        db_posts += Post.objects.filter(is_private=False, **query)[FROM:TO].as_pymongo()
+        db_posts += Post.objects.filter(query, is_private=False)[FROM:TO].as_pymongo()
     if private:
-        db_posts += Post.objects.filter(is_private=True, **query)[FROM:TO].as_pymongo()
+        db_posts += Post.objects.filter(query, is_private=True)[FROM:TO].as_pymongo()
 
     print(f"[INFO] posts: {db_posts}")
     return db_posts
@@ -100,51 +96,6 @@ async def update_post(pid: str, post: PostUpdate):
 async def delete_post(pid: str):
     post = Post.objects(id=pid).get()
     post.delete()
-
-
-async def subscribe_feed(uid: str, otheruid: str):
-    # save a reference to `uid` in `otheruid`, in order to populate feed 
-    user = await get_user(uid)
-    otheruser = await get_user(otheruid)
-
-    if uid == otheruid:
-        raise CRUDException("cannot subscribe to yourself")
-
-    if user in otheruser.followers:
-        raise CRUDException("subscription already exist")
-    
-    to_push = otheruser.public + otheruser.private
-    user.feed += to_push
-    user.save()
-    otheruser.followers.append(user)
-    otheruser.save()
-
-
-async def unsubscribe_feed(uid: str, otheruid: str):
-    user = await get_user(uid)
-    otheruser = await get_user(otheruid)
-    
-    if user not in otheruser.followers:
-        raise CRUDException("subscription doesnt exist")
-
-    to_pull = otheruser.public + otheruser.private
-    user.update(pull_all__feed=to_pull)
-    user.save()
-    otheruser.followers.remove(user)
-    #otheruser.update(pull__followers=user)
-    otheruser.save()
-
-
-async def get_feed(uid: str, limit: int, page: int) -> List[Dict[str, Any]]:
-    FROM, TO = limit * page, limit * (page + 1)
-    user = await get_user(uid)
-    feed = []
-
-    for post in user.feed[FROM:TO]:
-        feed.append(post.to_mongo().to_dict())
-
-    feed.sort(key=lambda x: x["timestamp"])
-    return feed 
 
 
 async def get_recommended(uid: str, limit: int, page: int) -> List[Dict[str, Any]]:
@@ -207,10 +158,9 @@ async def unlike_post(uid: str, pid: str):
 
 async def is_author(uid: str, pid: str):
     try: 
-        user = await get_user(uid)
         post = Post.objects(id=pid).get()
 
-        if post in user.public or post in user.private:
+        if post.uid == uid:
             return True
 
         return False

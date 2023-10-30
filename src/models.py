@@ -43,8 +43,6 @@ class Post(Document):
 # `ReferenceField` will be automatically dereferenced on access (consider efficency)
 # https://docs.mongoengine.org/apireference.html#mongoengine.fields.ReferenceField
 PostReference = ReferenceField(Post, reverse_delete_rule=PULL)
-UserReference = ReferenceField('User', reverse_delete_rule=PULL)
-#PostListReference = ReferenceField('PostList', reverse_delete=CASCADE)
 
 
 class User(Document):
@@ -52,8 +50,6 @@ class User(Document):
     public = ListField(PostReference, default=[]) 
     private = ListField(PostReference, default=[]) 
     favs = ListField(PostReference, default=[]) 
-    feed = ListField(PostReference, default=[])  # subscriptions to different user posts
-    followers = ListField(UserReference, default=[])
     liked = ListField(PostReference, default=[])
 
 
@@ -105,7 +101,7 @@ class PostUpdate(BaseModelOptional):
 
 
 class PostQuery(BaseModelOptional):
-    uid: Optional[str] = None  # author's uid
+    uid: List[str] = Field(Query([])) # author's uid
     nick: Optional[str] = None    # author's nickname
     text: Optional[Text] = None
     hashtags: List[Hashtag] = Field(Query([]))
