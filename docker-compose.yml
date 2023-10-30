@@ -1,0 +1,11 @@
+version: '3.8'
+
+services: 
+  posts-ms:
+    image: posts-ms
+    build: .
+    container_name: posts-ms
+    ports:
+      - 3001:3001
+    restart: always
+
