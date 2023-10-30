@@ -204,8 +204,9 @@ async def unlike_post(uid: str, pid: str):
 
 async def is_author(uid: str, pid: str):
     user = await get_user(uid)
+    post = Post.objects(id=pid).get()
 
-    if pid in user.public or pid in user.private:
+    if post in user.public or post in user.private:
         return True
     
     return False
