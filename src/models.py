@@ -92,8 +92,8 @@ class PostCreate(BaseModel):
     uid: str     # author's uid
     nick: str    # author's nickname
     text: Text
-    media_uri: List[str] = []
-    hashtags: List[Hashtag] = []
+    media_uri: Optional[List[str]] = []
+    hashtags: Optional[List[Hashtag]] = []
     is_private: bool = True
 
 
