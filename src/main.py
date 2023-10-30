@@ -5,12 +5,12 @@ from .models import Post, PostCreate, PostQuery, PostUpdate, PostResponse
 from . import crud 
 
 import mongoengine
-'''
-import datadog
+
 from ddtrace.runtime import RuntimeMetrics
+import datadog 
 
 RuntimeMetrics.enable()
-'''
+
 app = FastAPI()
 
 
