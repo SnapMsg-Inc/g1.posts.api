@@ -105,7 +105,7 @@ class PostUpdate(BaseModelOptional):
 
 
 class PostQuery(BaseModelOptional):
-    uid: Optional[str] = None  # author's uid
+    uid: List[str] = Field(Query([])) # author's uid
     nick: Optional[str] = None    # author's nickname
     text: Optional[Text] = None
     hashtags: List[Hashtag] = Field(Query([]))
