@@ -2,7 +2,9 @@
 from .models import User, Post, PostCreate, PostQuery, PostUpdate, PostResponse
 from typing import List, Dict, Any 
 from collections.abc import Iterable
+from mongoengine.queryset.visitor import Q
 from mongoengine import DoesNotExist
+
 
 import logging
 
@@ -20,14 +22,19 @@ class CRUDException(Exception):
 
 
 def get_mongo_query(post_query: PostQuery) -> Dict[str, Any]:
-    mongo_query = {}
+    query = Q() 
     for k, v in post_query.model_dump().items():
-        if isinstance(v, Iterable):
-            for item in v:
-                mongo_query[f"{k}__contains"] = item
+        if isinstance(v, str):
+            query &= Q(**{f"{k}__contains" : v})
+        elif isinstance(v, list):
+            expr = map(lambda item: f"Q({k}__contains='{item}')", v)
+            print(f"[INFO] expr: {expr}")
+            query &= (eval(" | ".join(expr)))
         else:
-            mongo_query[f"{k}__contains"] = v
-    return mongo_query
+            # ignore other type than list or str
+            pass
+
+    return query 
 
 
 async def get_user(uid: str):
@@ -78,12 +85,12 @@ async def read_posts(post_query: PostQuery, limit: int, page: int) -> List[Dict[
     FROM, TO = limit * page, limit * (page + 1)
     
     query = get_mongo_query(post_query)
-
     db_posts = [] 
+
     if public:
-        db_posts += Post.objects.filter(is_private=False, **query)[FROM:TO].as_pymongo()
+        db_posts += Post.objects.filter(query, is_private=False)[FROM:TO].as_pymongo()
     if private:
-        db_posts += Post.objects.filter(is_private=True, **query)[FROM:TO].as_pymongo()
+        db_posts += Post.objects.filter(query, is_private=True)[FROM:TO].as_pymongo()
 
     print(f"[INFO] posts: {db_posts}")
     return db_posts
