@@ -1,6 +1,0 @@
-apiVersion: v2
-name: posts-ms 
-description: A posts api for the SnapMsg app project
-type: application
-version: 0.1.0
-
