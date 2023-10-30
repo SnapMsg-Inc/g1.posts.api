@@ -46,17 +46,6 @@ async def get_user(uid: str):
     return user 
 
 
-async def populate_feed(post: Post):
-    user = await get_user(post.uid)
-    
-    for follower in user.followers:
-        # establish a limit in length of feed
-        if len(follower.feed) > MAX_FEED:
-            follower.feed.pop(0)
-        follower.feed.append(post)
-        follower.save()
-
-
 async def create_post(post_create: PostCreate):
     post = Post(**post_create.model_dump())
     post.save()
@@ -107,51 +96,6 @@ async def update_post(pid: str, post: PostUpdate):
 async def delete_post(pid: str):
     post = Post.objects(id=pid).get()
     post.delete()
-
-
-async def subscribe_feed(uid: str, otheruid: str):
-    # save a reference to `uid` in `otheruid`, in order to populate feed 
-    user = await get_user(uid)
-    otheruser = await get_user(otheruid)
-
-    if uid == otheruid:
-        raise CRUDException("cannot subscribe to yourself")
-
-    if user in otheruser.followers:
-        raise CRUDException("subscription already exist")
-    
-    to_push = otheruser.public + otheruser.private
-    user.feed += to_push
-    user.save()
-    otheruser.followers.append(user)
-    otheruser.save()
-
-
-async def unsubscribe_feed(uid: str, otheruid: str):
-    user = await get_user(uid)
-    otheruser = await get_user(otheruid)
-    
-    if user not in otheruser.followers:
-        raise CRUDException("subscription doesnt exist")
-
-    to_pull = otheruser.public + otheruser.private
-    user.update(pull_all__feed=to_pull)
-    user.save()
-    otheruser.followers.remove(user)
-    #otheruser.update(pull__followers=user)
-    otheruser.save()
-
-
-async def get_feed(uid: str, limit: int, page: int) -> List[Dict[str, Any]]:
-    FROM, TO = limit * page, limit * (page + 1)
-    user = await get_user(uid)
-    feed = []
-
-    for post in user.feed[FROM:TO]:
-        feed.append(post.to_mongo().to_dict())
-
-    feed.sort(key=lambda x: x["timestamp"])
-    return feed 
 
 
 async def get_recommended(uid: str, limit: int, page: int) -> List[Dict[str, Any]]:
@@ -214,10 +158,9 @@ async def unlike_post(uid: str, pid: str):
 
 async def is_author(uid: str, pid: str):
     try: 
-        user = await get_user(uid)
         post = Post.objects(id=pid).get()
 
-        if post in user.public or post in user.private:
+        if post.uid == uid:
             return True
 
         return False

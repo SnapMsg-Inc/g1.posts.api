@@ -81,26 +81,6 @@ async def delete_post(*, pid: str):
     return {"message" : "post deleted"}
 
 
-@app.post("/posts/{uid}/feed/{otheruid}")
-async def subscribe_feed(*, uid: str, otheruid: str):
-    await crud.subscribe_feed(uid, otheruid)
-    return {"message" : "subscription added"}
-
-
-@app.get("/posts/{uid}/feed", response_model=List[PostResponse])
-async def get_feed(*,
-                   uid: str, 
-                   limit: int = Query(default=100, ge=0, le=100), 
-                   page: int = Query(default=0, ge=0)):
-    return await crud.get_feed(uid, limit, page)
-
-
-@app.delete("/posts/{uid}/feed/{otheruid}")
-async def unsubscribe_feed(*, uid: str, otheruid: str):
-    await crud.unsubscribe_feed(uid, otheruid)
-    return {"message" : "subscription removed"}
-
-
 @app.get("/posts/{uid}/recommended", response_model=List[PostResponse])
 async def get_recommended(*,
                           uid: str, 
