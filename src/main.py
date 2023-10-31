@@ -127,7 +127,7 @@ async def unlike_post(*, uid: str, pid: str):
     return {"message" : "post unliked"}
 
 
-@app.get("/posts/{uid}/author/{pid}", response_model=bool)
+@app.get("/posts/{uid}/author/{pid}")
 async def is_author(*, uid: str, pid: str):
     is_author = await crud.is_author(uid, pid)
     if not is_author:

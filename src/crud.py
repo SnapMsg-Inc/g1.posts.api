@@ -161,9 +161,9 @@ async def is_author(uid: str, pid: str):
         if post.uid == uid:
             return True
 
-        return False
     except DoesNotExist:
         raise CRUDException("post doesnt exist")
+    return False
 
 async def is_liked(uid: str, pid: str):
     user = await get_user(uid)
