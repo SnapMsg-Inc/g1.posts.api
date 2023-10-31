@@ -115,7 +115,8 @@ async def like_post(*, uid: str, pid: str):
 
 @app.get("/posts/{uid}/likes/{pid}")
 async def is_liked(*, uid: str, pid: str):
-    if not crud.is_liked(uid, pid):
+    is_liked = await crud.is_liked(uid, pid)
+    if not is_liked:
         raise HTTPException(status_code=404, detail="not liked")
     return {"message": "the post is liked"}
 
@@ -128,7 +129,8 @@ async def unlike_post(*, uid: str, pid: str):
 
 @app.get("/posts/{uid}/author/{pid}", response_model=bool)
 async def is_author(*, uid: str, pid: str):
-    if not crud.is_author(uid, pid):
+    is_author = crud.is_author(uid, pid)
+    if not is_author:
         raise HTTPException(status_code=404, detail="not author")
     return {"message": "the user is the author"}    
 
