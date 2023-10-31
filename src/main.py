@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Query, Depends, Request, HTTPException 
+from fastapi import FastAPI, Query, Depends, Request, HTTPException
 from fastapi.responses import JSONResponse
 from typing import List, Annotated, Optional
 from .models import Post, PostCreate, PostQuery, PostUpdate, PostResponse
@@ -115,7 +115,7 @@ async def like_post(*, uid: str, pid: str):
 
 @app.get("/posts/{uid}/likes/{pid}")
 async def is_liked(*, uid: str, pid: str):
-    if crud.is_liked(uid, pid):
+    if not crud.is_liked(uid, pid):
         raise HTTPException(status_code=404, detail="not liked")
     return {"message": "the post is liked"}
 
@@ -128,7 +128,7 @@ async def unlike_post(*, uid: str, pid: str):
 
 @app.get("/posts/{uid}/author/{pid}", response_model=bool)
 async def is_author(*, uid: str, pid: str):
-    if crud.is_author(uid, pid):
+    if not crud.is_author(uid, pid):
         raise HTTPException(status_code=404, detail="not author")
     return {"message": "the user is the author"}    
 
