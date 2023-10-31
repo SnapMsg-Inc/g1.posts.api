@@ -68,7 +68,7 @@ async def get_post(*, pid: str):
 
 @app.patch("/posts/{pid}")
 async def update_post(*, pid: str, post: Optional[PostUpdate] = None):
-    if not post:
+    if not post or not post.__dict__:
         return {"message", "nothing to update"}
     await crud.update_post(pid, post)
     return {"message" : "post updated"}
