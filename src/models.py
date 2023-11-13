@@ -81,8 +81,8 @@ def hashtag_validator(h):
 
 
 Text = Annotated[str, AfterValidator(text_validator)] 
-Hashtag = Annotated[str, AfterValidator(hashtag_validator)]
 PID = Annotated[str, BeforeValidator(lambda pid: str(pid))]
+Hashtag = Annotated[str, AfterValidator(hashtag_validator)]
 
 class PostCreate(BaseModel):
     uid: str     # author's uid
@@ -95,7 +95,7 @@ class PostCreate(BaseModel):
 
 class PostUpdate(BaseModelOptional):
     text: Optional[Text] = None
-    media_uri: Optional[List[str]] = None
+    media_uri: Optional[List[str]] = []
     hashtags: Optional[List[Hashtag]] = None
     is_private: Optional[bool] = None
 
