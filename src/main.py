@@ -67,7 +67,8 @@ async def get_post(*, pid: str):
 
 
 @app.patch("/posts/{pid}")
-async def update_post(*, pid: str, post: Optional[PostUpdate] = None):
+async def update_post(*, pid: str, post: PostUpdate):
+    print(f"[POST]")
     if not post or not post.__dict__:
         return {"message", "nothing to update"}
     await crud.update_post(pid, post)
@@ -113,6 +114,7 @@ async def like_post(*, uid: str, pid: str):
     await crud.like_post(uid, pid)
     return {"message" : "post liked"}
 
+
 @app.get("/posts/{uid}/likes/{pid}")
 async def is_liked(*, uid: str, pid: str):
     is_liked = await crud.is_liked(uid, pid)
@@ -134,6 +136,9 @@ async def is_author(*, uid: str, pid: str):
         raise HTTPException(status_code=404, detail="not author")
     return {"message": "the user is the author"}    
 
+@app.delete("/posts/{uid}")
+async def delete_user(*, uid: str):
+    return await crud.delete_user(uid)
 
 
 

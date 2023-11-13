@@ -95,7 +95,7 @@ class PostCreate(BaseModel):
 
 class PostUpdate(BaseModelOptional):
     text: Optional[Text] = None
-    media_uri: Optional[str] = None
+    media_uri: Optional[List[str]] = None
     hashtags: Optional[List[Hashtag]] = None
     is_private: Optional[bool] = None
 
