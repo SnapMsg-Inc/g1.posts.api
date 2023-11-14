@@ -1,9 +1,11 @@
 # from .database import db
-from .models import User, Post, PostCreate, PostQuery, PostUpdate, PostResponse
+from .models import User, Post, PostCreate, PostQuery, PostUpdate, TrendingTopic, PostResponse
 from typing import List, Dict, Any 
 from collections.abc import Iterable
 from mongoengine.queryset.visitor import Q
 from mongoengine import DoesNotExist
+import re
+
 
 
 import logging
@@ -45,6 +47,21 @@ async def get_user(uid: str):
         user = User(uid=uid).save() # init one if does not exist
     return user 
 
+async def get_trending_topics(limit=10):
+    trending_topics = TrendingTopic.objects.order_by('-mention_count').limit(limit)
+    return trending_topics
+
+
+async def update_trending_topics(new_post: Post):
+    try:
+        # Usar directamente los hashtags del post
+        for hashtag in new_post.hashtags:
+            trending_topic, created = TrendingTopic.objects.get_or_create(topic_name=hashtag)
+            trending_topic.mention_count += 1
+            trending_topic.save()
+    except Exception as e:
+        logging.error(f"Error al actualizar los Trending Topics: {e}")
+
 
 async def create_post(post_create: PostCreate):
     post = Post(**post_create.model_dump())
@@ -57,6 +74,7 @@ async def create_post(post_create: PostCreate):
     else:
         user.public.append(post)
     user.save()
+    await update_trending_topics(post)
     return post
 
 

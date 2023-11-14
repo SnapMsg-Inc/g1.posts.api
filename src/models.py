@@ -118,3 +118,7 @@ class PostResponse(PostCreate):
         allow_population_by_field_name = True
 
 
+class TrendingTopic(Document):
+    topic_name = StringField(required=True, unique=True)
+    mention_count = IntField(required=True)
+    last_updated = DateTimeField()

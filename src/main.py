@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from typing import List, Annotated, Optional
 from .models import Post, PostCreate, PostQuery, PostUpdate, PostResponse
 from . import crud 
+from models import TrendingTopic
 
 import mongoengine
 
@@ -36,6 +37,7 @@ config = {
 }
 url = "mongodb://snapmsg:snapmsg@posts-db-mongodb:27017/postsdb"
 mongoengine.connect(**config)
+
 
 @app.on_event("shutdown")
 def shutdown_db_client():
@@ -140,5 +142,9 @@ async def is_author(*, uid: str, pid: str):
 async def delete_user(*, uid: str):
     return await crud.delete_user(uid)
 
+@app.get("/trending-topics")
+async def read_trending_topics(limit: int = 10):
+    topics = await crud.read_trending_topics(limit)
+    return [{"topic_name": topic.topic_name, "mention_count": topic.mention_count} for topic in topics]
 
 
