@@ -1,9 +1,10 @@
 # from .database import db
-from .models import User, Post, PostCreate, PostQuery, PostUpdate, PostResponse
+from .models import User, Post, PostCreate, PostQuery, PostUpdate, SnapShareReference, PostResponse
 from typing import List, Dict, Any 
 from collections.abc import Iterable
 from mongoengine.queryset.visitor import Q
 from mongoengine import DoesNotExist
+from datetime import datetime
 
 
 import logging
@@ -64,28 +65,35 @@ async def read_post(pid: str) -> Dict[str, Any]:
     return Post.objects.as_pymongo().get(pk=pid)
 
 
-async def read_posts(post_query: PostQuery, limit: int, page: int) -> List[Dict[str, Any]]:
+async def read_posts(user_id: str, post_query: PostQuery, limit: int, page: int) -> List[Dict[str, Any]]:
     print(f"[INFO] posts: {post_query.__dict__}")
     public = post_query.__dict__.pop("public")
     private = post_query.__dict__.pop("private")
 
-    if public and private:
-        limit /= 2
-    FROM, TO = limit * page, limit * (page + 1)
-    
     query = get_mongo_query(post_query)
     db_posts = [] 
 
     if public and private:
+        limit /= 2
         db_posts += Post.objects.filter(query)[FROM:TO].order_by("-timestamp").as_pymongo()
     elif public:
         db_posts += Post.objects.filter(query, is_private=False)[FROM:TO].order_by("-timestamp").as_pymongo()
     elif private:
         db_posts += Post.objects.filter(query, is_private=True)[FROM:TO].order_by("-timestamp").as_pymongo()
-    
 
-    print(f"[INFO] posts: {db_posts}")
-    return db_posts
+    user = await get_user(user_id)
+    snapshare_posts_ids = [str(snapshare.post.id) for snapshare in user.snapshares]
+    snapshare_posts = Post.objects.filter(id__in=snapshare_posts_ids).as_pymongo()
+    db_posts += snapshare_posts
+
+    db_posts.sort(key=lambda x: x['timestamp'], reverse=True)
+
+    # Aplicar paginación
+    FROM, TO = limit * page, limit * (page + 1)
+    paginated_posts = db_posts[FROM:TO]
+
+    print(f"[INFO] combined posts: {paginated_posts}")
+    return paginated_posts
 
 
 async def update_post(pid: str, post: PostUpdate):
@@ -183,4 +191,54 @@ async def delete_user(uid: str):
     # delete all posts with user as author 
     post = Post.objects(uid=uid).delete()
     user.delete()
-    
+
+async def create_snapshare(user_id: str, post_id: str):
+    try:
+        post = Post.objects.get(id=post_id)
+    except DoesNotExist:
+        raise CRUDException(f"No se encontró el Post con id {post_id}")
+
+    snapshare_ref = SnapShareReference(post=post, shared_at=datetime.utcnow())
+
+    try:
+        user = await get_user(user_id)
+        user.snapshares.append(snapshare_ref)
+        user.save()
+    except DoesNotExist:
+        raise CRUDException(f"No se encontró el Usuario con id {user_id}")
+
+    return snapshare_ref
+
+async def delete_snapshare(user_id: str, snapshare_id: str):
+    user = await get_user(user_id)
+
+    original_len = len(user.snapshares)
+    user.snapshares = [snapshare for snapshare in user.snapshares if str(snapshare.id) != snapshare_id]
+
+    if len(user.snapshares) == original_len:
+        raise CRUDException(f"No se encontró el SnapShare con id {snapshare_id} para el usuario {user_id}")
+
+    user.save()
+
+async def read_snapshares(user_id: str) -> List[Dict[str, Any]]:
+    try:
+        # Obtener el usuario por su ID
+        user = User.objects.get(uid=user_id)
+
+        # Lista para almacenar la información de los SnapShares
+        snapshares_data = []
+
+        # Recorrer los SnapShares y recopilar la información necesaria
+        for snapshare in user.snapshares:
+            # Aquí asumimos que cada snapshare contiene una referencia a un post y un timestamp
+            post_data = Post.objects.get(id=snapshare.post.id).to_mongo().to_dict()
+            snapshare_data = {
+                "snapshare_id": str(snapshare.id),
+                "post": post_data,
+                "shared_at": snapshare.shared_at
+            }
+            snapshares_data.append(snapshare_data)
+
+        return snapshares_data
+    except DoesNotExist:
+        raise CRUDException(f"No se encontró el Usuario con id {user_id}")

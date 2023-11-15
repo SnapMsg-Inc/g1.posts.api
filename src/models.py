@@ -6,6 +6,7 @@ from mongoengine import (
     BooleanField,
     DateTimeField, 
     ReferenceField,
+    EmbeddedDocument,
     EmbeddedDocumentField,
     PULL 
 )
@@ -44,6 +45,9 @@ class Post(Document):
 # https://docs.mongoengine.org/apireference.html#mongoengine.fields.ReferenceField
 PostReference = ReferenceField(Post, reverse_delete_rule=PULL)
 
+class SnapShareReference(EmbeddedDocument):
+    post = ReferenceField(Post, required=True)
+    shared_at = DateTimeField(default=datetime.utcnow)
 
 class User(Document):
     uid: str = StringField(required=True, unique=True)
@@ -51,6 +55,7 @@ class User(Document):
     private = ListField(PostReference, default=[]) 
     favs = ListField(PostReference, default=[]) 
     liked = ListField(PostReference, default=[])
+    snapshares = ListField(EmbeddedDocumentField(SnapShareReference), default=[])
 
 
 '''
@@ -81,8 +86,8 @@ def hashtag_validator(h):
 
 
 Text = Annotated[str, AfterValidator(text_validator)] 
-Hashtag = Annotated[str, AfterValidator(hashtag_validator)]
 PID = Annotated[str, BeforeValidator(lambda pid: str(pid))]
+Hashtag = Annotated[str, AfterValidator(hashtag_validator)]
 
 class PostCreate(BaseModel):
     uid: str     # author's uid
@@ -95,7 +100,7 @@ class PostCreate(BaseModel):
 
 class PostUpdate(BaseModelOptional):
     text: Optional[Text] = None
-    media_uri: Optional[List[str]] = None
+    media_uri: Optional[List[str]] = []
     hashtags: Optional[List[Hashtag]] = None
     is_private: Optional[bool] = None
 
@@ -118,3 +123,7 @@ class PostResponse(PostCreate):
         allow_population_by_field_name = True
 
 
+class TrendingTopic(Document):
+    topic_name = StringField(required=True, unique=True)
+    mention_count = IntField(required=True)
+    last_updated = DateTimeField()

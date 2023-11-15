@@ -140,5 +140,21 @@ async def is_author(*, uid: str, pid: str):
 async def delete_user(*, uid: str):
     return await crud.delete_user(uid)
 
+@app.post("/posts/{user_id}/snapshares/{post_id}")
+async def create_snapshare_endpoint(user_id: str, post_id: str):
+    try:
+        result = await crud.create_snapshare(user_id, post_id)
+        return {"message": "SnapShare created successfully", "data": result}
+    except crud.CRUDException as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+@app.delete("/posts/{user_id}/snapshares/{snapshare_id}")
+async def delete_snapshare_endpoint(user_id: str, snapshare_id: str):
+    try:
+        await crud.delete_snapshare(user_id, snapshare_id)
+        return {"message": "SnapShare deleted successfully"}
+    except crud.CRUDException as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
 
 
