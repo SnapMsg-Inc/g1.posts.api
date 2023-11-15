@@ -5,11 +5,6 @@ WORKDIR /usr/snapmsg-posts
 COPY requirements.txt requirements.txt
 
 RUN pip install --upgrade pip
-
-# Instala spaCy y descarga el modelo de lenguaje
-RUN pip install spacy
-RUN python -m spacy download en_core_web_sm
-
 RUN pip install -r requirements.txt
 
 COPY . .

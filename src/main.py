@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from typing import List, Annotated, Optional
 from .models import Post, PostCreate, PostQuery, PostUpdate, PostResponse
 from . import crud 
-from models import TrendingTopic
+from .models import TrendingTopic
 
 import mongoengine
 
@@ -143,8 +143,8 @@ async def delete_user(*, uid: str):
     return await crud.delete_user(uid)
 
 @app.get("/trending-topics")
-async def read_trending_topics(limit: int = 10):
-    topics = await crud.read_trending_topics(limit)
+async def get_trending_topics_endpoint(limit: int = 10):
+    topics = await crud.get_trending_topics(limit)
     return [{"topic_name": topic.topic_name, "mention_count": topic.mention_count} for topic in topics]
 
 

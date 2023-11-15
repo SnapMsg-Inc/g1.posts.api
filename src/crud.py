@@ -47,16 +47,14 @@ async def get_user(uid: str):
         user = User(uid=uid).save() # init one if does not exist
     return user 
 
-async def get_trending_topics(limit=10):
-    trending_topics = TrendingTopic.objects.order_by('-mention_count').limit(limit)
-    return trending_topics
-
-
 async def update_trending_topics(new_post: Post):
     try:
-        # Usar directamente los hashtags del post
         for hashtag in new_post.hashtags:
-            trending_topic, created = TrendingTopic.objects.get_or_create(topic_name=hashtag)
+            # Intentar obtener el trending topic, si no existe, crear uno nuevo
+            trending_topic = TrendingTopic.objects(topic_name=hashtag).first()
+            if not trending_topic:
+                trending_topic = TrendingTopic(topic_name=hashtag, mention_count=0)
+            
             trending_topic.mention_count += 1
             trending_topic.save()
     except Exception as e:
@@ -201,4 +199,8 @@ async def delete_user(uid: str):
     # delete all posts with user as author 
     post = Post.objects(uid=uid).delete()
     user.delete()
-    
+
+# Obtener los Trending Topics
+async def get_trending_topics(limit=10):
+    trending_topics = TrendingTopic.objects.order_by('-mention_count').limit(limit)
+    return trending_topics
