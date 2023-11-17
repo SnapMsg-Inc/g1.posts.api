@@ -75,11 +75,11 @@ async def read_posts(post_query: PostQuery, limit: int, page: int) -> List[Dict[
     db_posts = [] 
 
     if public and private:
-        db_posts += Post.objects.filter(query)[FROM:TO].as_pymongo()
+        db_posts += Post.objects.filter(query)[FROM:TO].order_by("-timestamp").as_pymongo()
     elif public:
-        db_posts += Post.objects.filter(query, is_private=False)[FROM:TO].as_pymongo()
+        db_posts += Post.objects.filter(query, is_private=False)[FROM:TO].order_by("-timestamp").as_pymongo()
     elif private:
-        db_posts += Post.objects.filter(query, is_private=True)[FROM:TO].as_pymongo()
+        db_posts += Post.objects.filter(query, is_private=True)[FROM:TO].order_by("-timestamp").as_pymongo()
 
     print(f"[INFO] posts: {db_posts}")
     return db_posts
@@ -99,7 +99,7 @@ async def delete_post(pid: str):
 
 
 async def get_recommended(uid: str, limit: int, page: int) -> List[Dict[str, Any]]:
-    return [] 
+    return []
 
 
 async def add_favs(uid: str, pid: str):
@@ -161,7 +161,23 @@ async def is_author(uid: str, pid: str):
         if post.uid == uid:
             return True
 
-        return False
     except DoesNotExist:
         raise CRUDException("post doesnt exist")
+    return False
 
+async def is_liked(uid: str, pid: str):
+    user = await get_user(uid)
+    post = Post.objects(id=pid).get()
+    if post in user.liked:
+        return True
+    return False
+
+async def delete_user(uid: str):
+    try:
+        user = User.objects(uid=uid).get()
+    except DoesNotExist:
+        raise CRUDException("user doesnt exist")
+    # delete all posts with user as author 
+    post = Post.objects(uid=uid).delete()
+    user.delete()
+    
