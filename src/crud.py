@@ -12,7 +12,7 @@ MAX_FEED = 250
 
 class CRUDException(Exception):
     message: str = "API error: "
-
+    code: int = 400 
     def __init__(self, message):
         self.message += message
 
@@ -69,8 +69,6 @@ async def read_posts(post_query: PostQuery, limit: int, page: int) -> List[Dict[
     public = post_query.__dict__.pop("public")
     private = post_query.__dict__.pop("private")
 
-    if public and private:
-        limit /= 2
     FROM, TO = limit * page, limit * (page + 1)
     
     query = get_mongo_query(post_query)
@@ -82,7 +80,6 @@ async def read_posts(post_query: PostQuery, limit: int, page: int) -> List[Dict[
         db_posts += Post.objects.filter(query, is_private=False)[FROM:TO].order_by("-timestamp").as_pymongo()
     elif private:
         db_posts += Post.objects.filter(query, is_private=True)[FROM:TO].order_by("-timestamp").as_pymongo()
-    
 
     print(f"[INFO] posts: {db_posts}")
     return db_posts

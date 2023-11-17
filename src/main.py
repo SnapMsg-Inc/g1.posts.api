@@ -16,10 +16,14 @@ app = FastAPI()
 
 @app.exception_handler(Exception)
 async def error_handler(req: Request, exc):
-    detail = "internal server error"
+    detail = str(exc) 
+    code = 400
+    if isinstance(exc, mongoengine.DoesNotExist):
+        detail = "post not found"
+        code = 404
     if isinstance(exc, crud.CRUDException):
-        detail = str(exc)
-    return JSONResponse(status_code=400, content={"detail" : detail})
+        code = exc.code
+    return JSONResponse(status_code=code, content={"detail" : detail})
             
 
 #@app.on_event("startup")
