@@ -180,4 +180,11 @@ async def delete_user(uid: str):
     # delete all posts with user as author 
     post = Post.objects(uid=uid).delete()
     user.delete()
+
+async def is_faved(uid: str, pid: str):
+    user = await get_user(uid)
+    post = Post.objects(id=pid).get()
+    if post in user.favs:
+        return True
+    return False
     

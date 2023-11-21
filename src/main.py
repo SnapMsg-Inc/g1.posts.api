@@ -106,6 +106,12 @@ async def get_favs(*,
                    page: int = Query(default=0, ge=0)):
     return await crud.read_favs(uid, limit, page)
 
+@app.get("/posts/{uid}/favs/{pid}")
+async def is_faved(*, uid: str, pid: str):
+    is_faved = await crud.is_faved(uid, pid)
+    if not is_faved:
+        raise HTTPException(status_code=404, detail="not faved")
+    return {"message": "the post is faved"}
 
 @app.delete("/posts/{uid}/favs/{pid}")
 async def delete_favs(*, uid: str, pid: str):
