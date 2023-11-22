@@ -75,13 +75,12 @@ async def read_posts(post_query: PostQuery, limit: int, page: int) -> List[Dict[
     db_posts = [] 
 
     if public and private:
-        print("HERE")
-        db_posts = Post.objects.filter()[FROM:TO].order_by("-timestamp").as_pymongo()
+        db_posts = BasePost.objects.filter(query)[FROM:TO].order_by("-timestamp").as_pymongo()
     elif public:
         # only posts that are public
         db_posts = Post.objects.filter(query, is_private=False)[FROM:TO].order_by("-timestamp").as_pymongo()
     elif private:
-        db_posts = Post.objects.filter(query, is_private=True)[FROM:TO].order_by("-timestamp").as_pymongo()
+        db_posts = BasePost.objects.filter(query, is_private=True)[FROM:TO].order_by("-timestamp").as_pymongo()
 
     return db_posts
 
