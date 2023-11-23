@@ -6,7 +6,9 @@ from mongoengine import (
     BooleanField,
     DateTimeField, 
     ReferenceField,
+    EmbeddedDocument,
     EmbeddedDocumentField,
+    CASCADE, 
     PULL 
 )
 from fastapi import Query, Depends
@@ -20,29 +22,35 @@ from collections.abc import Iterable
 '''
     database models
 '''
-
-class Post(Document):
+class BasePost(Document): 
     uid: str = StringField(required=True)  # author uid
-    nick: str = StringField(required=True)  # author nickname
-    text: str = StringField(required=True)
-    media_uri: List[str] = ListField(StringField(), default=[])
-    hashtags: List[str] = ListField(StringField(), default=[])
     is_private: bool = BooleanField(default=True)
-    timestamp: datetime = DateTimeField(default=datetime.utcnow)
-    likes: int = IntField(default=0, min_value=0)
+    timestamp = DateTimeField(default=datetime.utcnow)
 
     meta = {
         'indexes': [
             {
                 'fields': [('uid', 1), ('timestamp', -1)],  # compound index 
             }
-        ]
+        ],
+        'allow_inheritance': True,
     }
+
+
+class Post(BasePost):
+    text: str = StringField(required=True)
+    media_uri: List[str] = ListField(StringField(), default=[])
+    hashtags: List[str] = ListField(StringField(), default=[])
+    likes: int = IntField(default=0, min_value=0)
+    
         
+class SnapShare(BasePost):
+    post = ReferenceField(Post, reverse_delete_rule=CASCADE) # delete document when referenced is deleted
 
 # `ReferenceField` will be automatically dereferenced on access (consider efficency)
 # https://docs.mongoengine.org/apireference.html#mongoengine.fields.ReferenceField
 PostReference = ReferenceField(Post, reverse_delete_rule=PULL)
+SnapShareReference = ReferenceField(SnapShare, reverse_delete_rule=PULL)
 
 
 class User(Document):
@@ -51,7 +59,34 @@ class User(Document):
     private = ListField(PostReference, default=[]) 
     favs = ListField(PostReference, default=[]) 
     liked = ListField(PostReference, default=[])
+    snapshare = ListField(SnapShareReference, default=[])
 
+
+class TopicMention(Document):
+    timestamp = DateTimeField(default=datetime.utcnow)
+    meta = {
+        'indexes': [
+            {
+                'fields': ['timestamp'], 'expireAfterSeconds': (60 * 60 * 24) # ttl index
+            }
+        ]
+    }
+
+TopicMentionReference = ReferenceField(TopicMention, reverse_delete_rule=PULL)
+
+class TrendingTopic(Document):
+    topic = StringField(required=True, unique=True)
+    mentions = ListField(TopicMentionReference, default=[])
+    last_mentioned = DateTimeField(default=datetime.utcnow)
+    
+    meta = {
+        'indexes': [
+            {
+                'fields': ['last_mentioned'], 'expireAfterSeconds': (60 * 60 * 24) # ttl index
+            }
+        ]
+    }
+    
 
 '''
     API models
@@ -81,12 +116,11 @@ def hashtag_validator(h):
 
 
 Text = Annotated[str, AfterValidator(text_validator)] 
-Hashtag = Annotated[str, AfterValidator(hashtag_validator)]
 PID = Annotated[str, BeforeValidator(lambda pid: str(pid))]
+Hashtag = Annotated[str, AfterValidator(hashtag_validator)]
 
 class PostCreate(BaseModel):
     uid: str     # author's uid
-    nick: str    # author's nickname
     text: Text
     media_uri: Optional[List[str]] = []
     hashtags: Optional[List[Hashtag]] = []
@@ -95,14 +129,13 @@ class PostCreate(BaseModel):
 
 class PostUpdate(BaseModelOptional):
     text: Optional[Text] = None
-    media_uri: Optional[List[str]] = None
+    media_uri: Optional[List[str]] = []
     hashtags: Optional[List[Hashtag]] = None
     is_private: Optional[bool] = None
 
 
 class PostQuery(BaseModelOptional):
     uid: List[str] = Field(Query([])) # author's uid
-    nick: Optional[str] = None    # author's nickname
     text: Optional[Text] = None
     hashtags: List[Hashtag] = Field(Query([]))
     private: bool = False
@@ -118,3 +151,12 @@ class PostResponse(PostCreate):
         allow_population_by_field_name = True
 
 
+class SnapShareResponse(BaseModel):
+    pid: PID = Field(validation_alias="_id")
+    uid: str 
+    post: PostResponse
+    is_private: bool
+    timestamp: datetime
+    
+    class Config:
+        allow_population_by_field_name = True
