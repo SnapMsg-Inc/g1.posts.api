@@ -4,8 +4,9 @@ from typing import List, Dict, Any
 from collections.abc import Iterable
 from mongoengine.queryset.visitor import Q
 from mongoengine import DoesNotExist
-from datetime import datetime
 
+import re
+from datetime import datetime, timedelta
 
 import logging
 
@@ -46,6 +47,20 @@ async def get_user(uid: str):
     return user 
 
 
+async def update_trending_topics(new_post: Post):
+    try:
+        for hashtag in new_post.hashtags:
+            # Intentar obtener el trending topic, si no existe, crear uno nuevo
+            trending_topic = TrendingTopic.objects(topic_name=hashtag).first()
+            if not trending_topic:
+                trending_topic = TrendingTopic(topic_name=hashtag, mention_count=0)
+            
+            trending_topic.mention_count += 1
+            trending_topic.save()
+    except Exception as e:
+        logging.error(f"Error al actualizar los Trending Topics: {e}")
+
+
 async def create_post(post_create: PostCreate):
     post = Post(**post_create.model_dump())
     post.save()
@@ -57,6 +72,7 @@ async def create_post(post_create: PostCreate):
     else:
         user.public.append(post)
     user.save()
+    await update_trending_topics(post)
     return post
 
 
@@ -215,3 +231,9 @@ async def delete_snapshare(pid: str):
     except DoesNotExist:
         raise CRUDException("snapshare does not exist")
     snapshare.delete()
+
+    
+async def get_trending_topics(limit: int, page: int):
+    # Last hour Trending Topics
+    trending_topics = TrendingTopic.objects().order_by('-mention_count').limit(limit)
+    return trending_topics
