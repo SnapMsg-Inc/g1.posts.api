@@ -142,8 +142,10 @@ async def is_author(*, uid: str, pid: str):
 async def delete_user(*, uid: str):
     return await crud.delete_user(uid)
 
-@app.get("/trending-topics")
-async def get_trending_topics_endpoint(limit: int = 10):
+@app.get("/trendings")
+async def get_trending_topics(*, 
+                              limit: int = Query(default=100, ge=0, le=100), 
+                              page: int = Query(default=0, ge=0)):
     topics = await crud.get_trending_topics(limit)
     return [{"topic_name": topic.topic_name, "mention_count": topic.mention_count} for topic in topics]
 

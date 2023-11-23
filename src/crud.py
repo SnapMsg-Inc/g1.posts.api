@@ -5,12 +5,10 @@ from collections.abc import Iterable
 from mongoengine.queryset.visitor import Q
 from mongoengine import DoesNotExist
 import re
-
-
+from datetime import datetime, timedelta
 
 import logging
 
-MAX_FEED = 250
 
 class CRUDException(Exception):
     message: str = "API error: "
@@ -46,6 +44,7 @@ async def get_user(uid: str):
         print("[DEBUG] user doesnt exists")
         user = User(uid=uid).save() # init one if does not exist
     return user 
+
 
 async def update_trending_topics(new_post: Post):
     try:
@@ -184,12 +183,14 @@ async def is_author(uid: str, pid: str):
         raise CRUDException("post doesnt exist")
     return False
 
+
 async def is_liked(uid: str, pid: str):
     user = await get_user(uid)
     post = Post.objects(id=pid).get()
     if post in user.liked:
         return True
     return False
+
 
 async def delete_user(uid: str):
     try:
@@ -200,7 +201,8 @@ async def delete_user(uid: str):
     post = Post.objects(uid=uid).delete()
     user.delete()
 
-# Obtener los Trending Topics
-async def get_trending_topics(limit=10):
-    trending_topics = TrendingTopic.objects.order_by('-mention_count').limit(limit)
+
+async def get_trending_topics(limit: int, page: int):
+    # Last hour Trending Topics
+    trending_topics = TrendingTopic.objects().order_by('-mention_count').limit(limit)
     return trending_topics

@@ -53,6 +53,31 @@ class User(Document):
     liked = ListField(PostReference, default=[])
 
 
+class TopicMention(Document):
+    timestamp = DateTimeField()
+    meta = {
+        'indexes': [
+            {
+                'fields': ['timestamp'], 'expireAfterSeconds': (60 * 60 * 24) # ttl index
+            }
+        ]
+    }
+
+TopicMentionReference = ReferenceField(Post, reverse_delete_rule=PULL)
+
+class TrendingTopic(Document):
+    topic_name = StringField(required=True, unique=True)
+    mentions = ListField(TopicMentionReference, default=[])
+
+    meta = {
+        'indexes': [
+            {
+                'name': 'expire-index',
+                'partialFilterExpression': { 'mentions' : {'$size' : {"eq" : 0}}},
+            }
+        ]
+    }
+
 '''
     API models
 '''
@@ -116,9 +141,3 @@ class PostResponse(PostCreate):
     
     class Config:
         allow_population_by_field_name = True
-
-
-class TrendingTopic(Document):
-    topic_name = StringField(required=True, unique=True)
-    mention_count = IntField(required=True)
-    last_updated = DateTimeField()
