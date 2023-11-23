@@ -1,8 +1,9 @@
 from fastapi import FastAPI, Query, Depends, Request, HTTPException
 from fastapi.responses import JSONResponse
 from typing import List, Annotated, Optional
-from .models import Post, PostCreate, PostQuery, PostUpdate, PostResponse
+from .models import Post, PostCreate, PostQuery, PostUpdate, PostResponse, SnapShareResponse
 from . import crud 
+from .models import TrendingTopic
 
 import mongoengine
 
@@ -41,6 +42,7 @@ config = {
 url = "mongodb://snapmsg:snapmsg@posts-db-mongodb:27017/postsdb"
 mongoengine.connect(**config)
 
+
 @app.on_event("shutdown")
 def shutdown_db_client():
     mongoengine.disconnect()
@@ -54,6 +56,7 @@ async def root():
 @app.post("/posts", status_code=201)
 async def create_post(*, post: PostCreate):
     db_post = await crud.create_post(post)
+    await crud.update_trending_topics(post)
     return {"message" : "post created"}
 
 
@@ -146,9 +149,46 @@ async def is_author(*, uid: str, pid: str):
         raise HTTPException(status_code=404, detail="not author")
     return {"message": "the user is the author"}    
 
+
 @app.delete("/posts/{uid}")
 async def delete_user(*, uid: str):
     return await crud.delete_user(uid)
 
+
+@app.get("/trendings")
+async def get_trending_topics(*, 
+                              limit: int = Query(default=100, ge=0, le=100), 
+                              page: int = Query(default=0, ge=0)):
+    return await crud.get_trending_topics(limit, page)
+
+
+@app.post("/posts/{uid}/snapshares/{pid}")
+async def create_snapshare(uid: str, pid: str):
+    result = await crud.create_snapshare(uid, pid)
+    return {"message": "snapshare created"}
+
+
+@app.get("/posts/{uid}/snapshares/{pid}")
+async def is_snapshared(*, uid: str, pid: str):
+    is_snapshared = await crud.is_snapshared(uid, pid)
+    if not is_snapshared:
+        raise HTTPException(status_code=404, detail="not snapshared")
+    return {"message": "already snapshared"}  
+
+
+@app.get("/posts/{uid}/snapshares/", response_model=List[SnapShareResponse])
+async def get_snapshares(*,
+                         uid: str,
+                         limit: int = Query(default=100, ge=0, le=100), 
+                         page: int = Query(default=0, ge=0)):
+    return await crud.read_snapshares(uid, limit, page)
+    
+
+@app.delete("/posts/snapshares/{pid}")
+async def delete_snapshare_endpoint(pid: str):
+    await crud.delete_snapshare(pid)
+    return {"message": "snapshare deleted successfully"}
+   
+    
 
 
