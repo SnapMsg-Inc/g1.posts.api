@@ -236,13 +236,12 @@ async def read_snapshares(uid: str, limit: int, page: int):
     user = await get_user(uid)
     FROM, TO = limit * page, limit * (page + 1)
     snapshares = []
-    print(f"[SNAPSHARES] {user.snapshare[0].to_mongo()}")
 
-    for snapshare in user.snapshare[FROM:TO]:
-        post = snapshare.post
-
-        snapshares.append(snapshare.to_mongo().to_dict())
-        snapshares.
+    for db_snapshare in user.snapshare[FROM:TO]:
+        post = db_snapshare.post.to_mongo()
+        snapshare = db_snapshare.to_mongo()
+        snapshare['post'] = post
+        snapshares.append(snapshare.to_dict())
     return snapshares
 
 

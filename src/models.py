@@ -149,3 +149,14 @@ class PostResponse(PostCreate):
     
     class Config:
         allow_population_by_field_name = True
+
+
+class SnapShareResponse(BaseModel):
+    pid: PID = Field(validation_alias="_id")
+    uid: str 
+    post: PostResponse
+    is_private: bool
+    timestamp: datetime
+    
+    class Config:
+        allow_population_by_field_name = True

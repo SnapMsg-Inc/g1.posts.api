@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Query, Depends, Request, HTTPException
 from fastapi.responses import JSONResponse
 from typing import List, Annotated, Optional
-from .models import Post, PostCreate, PostQuery, PostUpdate, PostResponse
+from .models import Post, PostCreate, PostQuery, PostUpdate, PostResponse, SnapShareResponse
 from . import crud 
 from .models import TrendingTopic
 
@@ -166,7 +166,7 @@ async def is_snapshared(*, uid: str, pid: str):
     return {"message": "already snapshared"}  
 
 
-@app.get("/posts/{uid}/snapshares/")
+@app.get("/posts/{uid}/snapshares/", response_model=List[SnapShareResponse])
 async def get_snapshares(*,
                          uid: str,
                          limit: int = Query(default=100, ge=0, le=100), 
