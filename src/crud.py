@@ -1,9 +1,10 @@
 # from .database import db
-from .models import User, Post, PostCreate, PostQuery, PostUpdate, TrendingTopic, PostResponse
+from .models import User, Post, BasePost, PostCreate, PostQuery, PostUpdate, SnapShare, PostResponse
 from typing import List, Dict, Any 
 from collections.abc import Iterable
 from mongoengine.queryset.visitor import Q
 from mongoengine import DoesNotExist
+
 import re
 from datetime import datetime, timedelta
 
@@ -84,35 +85,34 @@ async def read_posts(post_query: PostQuery, limit: int, page: int) -> List[Dict[
     public = post_query.__dict__.pop("public")
     private = post_query.__dict__.pop("private")
 
-    if public and private:
-        limit /= 2
     FROM, TO = limit * page, limit * (page + 1)
-    
+
     query = get_mongo_query(post_query)
     db_posts = [] 
 
     if public and private:
-        db_posts += Post.objects.filter(query)[FROM:TO].order_by("-timestamp").as_pymongo()
+        db_posts = BasePost.objects.filter(query)[FROM:TO].order_by("-timestamp").as_pymongo()
     elif public:
-        db_posts += Post.objects.filter(query, is_private=False)[FROM:TO].order_by("-timestamp").as_pymongo()
+        # only posts that are public
+        db_posts = Post.objects.filter(query, is_private=False)[FROM:TO].order_by("-timestamp").as_pymongo()
     elif private:
-        db_posts += Post.objects.filter(query, is_private=True)[FROM:TO].order_by("-timestamp").as_pymongo()
-    
+        db_posts = BasePost.objects.filter(query, is_private=True)[FROM:TO].order_by("-timestamp").as_pymongo()
 
-    print(f"[INFO] posts: {db_posts}")
     return db_posts
 
 
 async def update_post(pid: str, post: PostUpdate):
     try:
-        # post = Post.objects(id=pid).get()
         Post.objects(id=pid).get().update(**post.model_dump())
     except DoesNotExist:
         raise CRUDException("post doesnt exist")
 
 
 async def delete_post(pid: str):
-    post = Post.objects(id=pid).get()
+    try:
+        post = Post.objects(id=pid).get()
+    except DoesNotExist:
+        raise CRUDException("post does not exist")
     post.delete()
 
 
@@ -134,7 +134,7 @@ async def read_favs(uid: str, limit: int, page: int) -> List[Dict[str, Any]]:
     FROM, TO = limit * page, limit * (page + 1)
     user = await get_user(uid)
     favs = []
-    print(user.to_mongo())
+
     for post in user.favs[FROM:TO]:
         favs.append(post.to_mongo().to_dict())
     return favs
@@ -165,22 +165,21 @@ async def unlike_post(uid: str, pid: str):
     user = await get_user(uid)
     post = Post.objects(id=pid).get()
     if post not in user.liked:
-        raise CRUDException("like doesnt exist")
+        raise CRUDException("like does not exist")
 
     post.likes -= 1
     user.liked.remove(post)
     post.save()
     user.save()
 
+
 async def is_author(uid: str, pid: str):
     try: 
         post = Post.objects(id=pid).get()
-
         if post.uid == uid:
             return True
-
     except DoesNotExist:
-        raise CRUDException("post doesnt exist")
+        raise CRUDException("post does not exist")
     return False
 
 
@@ -196,12 +195,44 @@ async def delete_user(uid: str):
     try:
         user = User.objects(uid=uid).get()
     except DoesNotExist:
-        raise CRUDException("user doesnt exist")
+        raise CRUDException("user does not exist")
     # delete all posts with user as author 
     post = Post.objects(uid=uid).delete()
     user.delete()
 
 
+async def create_snapshare(uid: str, pid: str):
+    user = await get_user(uid)
+    
+    try:
+        post = Post.objects.get(id=pid)
+    except DoesNotExist:
+        raise CRUDException("post does not exist")
+
+    snapshare = SnapShare(post=post)
+    user.snapshare.append(snapshare)
+    user.save()
+
+
+async def read_snapshares(uid: str, limit: int, page: int):
+    user = await get_user(uid)
+    FROM, TO = limit * page, limit * (page + 1)
+    snapshares = []
+
+    for post in user.snapshare[FROM:TO]:
+        snapshares.append(post.to_mongo().to_dict())
+
+    return snapshares
+
+
+async def delete_snapshare(pid: str):
+    try:
+        snapshare = SnapShare.objects(id=pid).get()
+    except DoesNotExist:
+        raise CRUDException("snapshare does not exist")
+    snapshare.delete()
+
+    
 async def get_trending_topics(limit: int, page: int):
     # Last hour Trending Topics
     trending_topics = TrendingTopic.objects().order_by('-mention_count').limit(limit)

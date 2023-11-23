@@ -138,6 +138,7 @@ async def is_author(*, uid: str, pid: str):
         raise HTTPException(status_code=404, detail="not author")
     return {"message": "the user is the author"}    
 
+
 @app.delete("/posts/{uid}")
 async def delete_user(*, uid: str):
     return await crud.delete_user(uid)
@@ -148,5 +149,18 @@ async def get_trending_topics(*,
                               page: int = Query(default=0, ge=0)):
     topics = await crud.get_trending_topics(limit)
     return [{"topic_name": topic.topic_name, "mention_count": topic.mention_count} for topic in topics]
+
+@app.post("/posts/{uid}/snapshares/{pid}")
+async def create_snapshare_endpoint(uid: str, pid: str):
+        result = await crud.create_snapshare(uid, pid)
+        return {"message": "SnapShare created"}
+    
+    
+@app.delete("/posts/snapshares/{pid}")
+async def delete_snapshare_endpoint(pid: str):
+        await crud.delete_snapshare(pid)
+        return {"message": "SnapShare deleted successfully"}
+   
+    
 
 
