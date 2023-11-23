@@ -52,6 +52,7 @@ class SnapShare(BasePost):
 PostReference = ReferenceField(Post, reverse_delete_rule=PULL)
 SnapShareReference = ReferenceField(SnapShare, reverse_delete_rule=PULL)
 
+
 class User(Document):
     uid: str = StringField(required=True, unique=True)
     public = ListField(PostReference, default=[]) 
@@ -62,7 +63,7 @@ class User(Document):
 
 
 class TopicMention(Document):
-    timestamp = DateTimeField()
+    timestamp = DateTimeField(default=datetime.utcnow)
     meta = {
         'indexes': [
             {
@@ -71,20 +72,21 @@ class TopicMention(Document):
         ]
     }
 
-TopicMentionReference = ReferenceField(Post, reverse_delete_rule=PULL)
+TopicMentionReference = ReferenceField(TopicMention, reverse_delete_rule=PULL)
 
 class TrendingTopic(Document):
-    topic_name = StringField(required=True, unique=True)
+    topic = StringField(required=True, unique=True)
     mentions = ListField(TopicMentionReference, default=[])
-
+    last_mentioned = DateTimeField(default=datetime.utcnow)
+    
     meta = {
         'indexes': [
             {
-                'name': 'expire-index',
-                'partialFilterExpression': { 'mentions' : {'$size' : {"eq" : 0}}},
+                'fields': ['last_mentioned'], 'expireAfterSeconds': (60 * 60 * 24) # ttl index
             }
         ]
     }
+    
 
 '''
     API models

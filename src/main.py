@@ -52,6 +52,7 @@ async def root():
 @app.post("/posts", status_code=201)
 async def create_post(*, post: PostCreate):
     db_post = await crud.create_post(post)
+    await crud.update_trending_topics(post)
     return {"message" : "post created"}
 
 
@@ -143,23 +144,40 @@ async def is_author(*, uid: str, pid: str):
 async def delete_user(*, uid: str):
     return await crud.delete_user(uid)
 
+
 @app.get("/trendings")
 async def get_trending_topics(*, 
                               limit: int = Query(default=100, ge=0, le=100), 
                               page: int = Query(default=0, ge=0)):
-    topics = await crud.get_trending_topics(limit)
-    return [{"topic_name": topic.topic_name, "mention_count": topic.mention_count} for topic in topics]
+    return await crud.get_trending_topics(limit, page)
+
 
 @app.post("/posts/{uid}/snapshares/{pid}")
-async def create_snapshare_endpoint(uid: str, pid: str):
-        result = await crud.create_snapshare(uid, pid)
-        return {"message": "SnapShare created"}
+async def create_snapshare(uid: str, pid: str):
+    result = await crud.create_snapshare(uid, pid)
+    return {"message": "snapshare created"}
+
+
+@app.get("/posts/{uid}/snapshares/{pid}")
+async def is_snapshared(*, uid: str, pid: str):
+    is_snapshared = await crud.is_snapshared(uid, pid)
+    if not is_snapshared:
+        raise HTTPException(status_code=404, detail="not snapshared")
+    return {"message": "already snapshared"}  
+
+
+@app.get("/posts/{uid}/snapshares/")
+async def get_snapshares(*,
+                         uid: str,
+                         limit: int = Query(default=100, ge=0, le=100), 
+                         page: int = Query(default=0, ge=0)):
+    return await crud.read_snapshares(uid, limit, page)
     
-    
+
 @app.delete("/posts/snapshares/{pid}")
 async def delete_snapshare_endpoint(pid: str):
-        await crud.delete_snapshare(pid)
-        return {"message": "SnapShare deleted successfully"}
+    await crud.delete_snapshare(pid)
+    return {"message": "snapshare deleted successfully"}
    
     
 

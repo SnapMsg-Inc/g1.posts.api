@@ -1,11 +1,21 @@
 # from .database import db
-from .models import User, Post, BasePost, PostCreate, PostQuery, PostUpdate, SnapShare, PostResponse
+from .models import (
+    User, 
+    BasePost, 
+    Post, 
+    SnapShare,
+    PostCreate, 
+    PostQuery, 
+    PostUpdate, 
+    PostResponse,
+    TrendingTopic,
+    TopicMention,
+)
 from typing import List, Dict, Any 
 from collections.abc import Iterable
 from mongoengine.queryset.visitor import Q
 from mongoengine import DoesNotExist
 
-import re
 from datetime import datetime, timedelta
 
 import logging
@@ -47,18 +57,27 @@ async def get_user(uid: str):
     return user 
 
 
-async def update_trending_topics(new_post: Post):
+async def get_trending_topic(topic: str):
     try:
-        for hashtag in new_post.hashtags:
-            # Intentar obtener el trending topic, si no existe, crear uno nuevo
-            trending_topic = TrendingTopic.objects(topic_name=hashtag).first()
-            if not trending_topic:
-                trending_topic = TrendingTopic(topic_name=hashtag, mention_count=0)
-            
-            trending_topic.mention_count += 1
-            trending_topic.save()
-    except Exception as e:
-        logging.error(f"Error al actualizar los Trending Topics: {e}")
+        trending = TrendingTopic.objects.get(topic=topic)
+    except DoesNotExist:
+        print("[DEBUG] trending doesnt exists")
+        trending = TrendingTopic(topic=topic).save() # init one if does not exist
+    return trending 
+
+
+async def update_trending_topics(post: PostQuery):
+    # try:
+    for topic in post.hashtags:
+        print("HERE")
+        mention = TopicMention()
+        mention.save()
+        trending_topic = await get_trending_topic(topic)
+        trending_topic.mentions.append(mention)
+        trending_topic.last_mentioned = datetime.utcnow
+        trending_topic.save()
+    # except Exception as e:
+        # logging.error(f"error updating trending topic: {e}")
 
 
 async def create_post(post_create: PostCreate):
@@ -72,7 +91,6 @@ async def create_post(post_create: PostCreate):
     else:
         user.public.append(post)
     user.save()
-    await update_trending_topics(post)
     return post
 
 
@@ -209,7 +227,7 @@ async def create_snapshare(uid: str, pid: str):
     except DoesNotExist:
         raise CRUDException("post does not exist")
 
-    snapshare = SnapShare(post=post)
+    snapshare = SnapShare(uid=uid, post=post).save()
     user.snapshare.append(snapshare)
     user.save()
 
@@ -218,11 +236,23 @@ async def read_snapshares(uid: str, limit: int, page: int):
     user = await get_user(uid)
     FROM, TO = limit * page, limit * (page + 1)
     snapshares = []
+    print(f"[SNAPSHARES] {user.snapshare[0].to_mongo()}")
 
-    for post in user.snapshare[FROM:TO]:
-        snapshares.append(post.to_mongo().to_dict())
+    for snapshare in user.snapshare[FROM:TO]:
+        post = snapshare.post
 
+        snapshares.append(snapshare.to_mongo().to_dict())
+        snapshares.
     return snapshares
+
+
+async def is_snapshared(uid: str, pid: str):
+    user = await get_user(uid)
+    try:
+        snapshare = SnapShare.objects(uid=uid, post=post)
+    except DoesNotExist:
+        return False
+    return True
 
 
 async def delete_snapshare(pid: str):
@@ -234,6 +264,7 @@ async def delete_snapshare(pid: str):
 
     
 async def get_trending_topics(limit: int, page: int):
-    # Last hour Trending Topics
-    trending_topics = TrendingTopic.objects().order_by('-mention_count').limit(limit)
-    return trending_topics
+    FROM, TO = limit * page, limit * (page + 1)
+    topics = TrendingTopic.objects()[FROM:TO].order_by('-mentions')
+    return [{"topic": topic.topic, "mention_count": len(topic.mentions)} for topic in topics]
+
