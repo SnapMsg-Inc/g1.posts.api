@@ -17,10 +17,14 @@ app = FastAPI()
 
 @app.exception_handler(Exception)
 async def error_handler(req: Request, exc):
-    detail = "internal server error"
+    detail = str(exc) 
+    code = 400
+    if isinstance(exc, mongoengine.DoesNotExist):
+        detail = "post not found"
+        code = 404
     if isinstance(exc, crud.CRUDException):
-        detail = str(exc)
-    return JSONResponse(status_code=400, content={"detail" : detail})
+        code = exc.code
+    return JSONResponse(status_code=code, content={"detail" : detail})
             
 
 #@app.on_event("startup")
@@ -105,6 +109,12 @@ async def get_favs(*,
                    page: int = Query(default=0, ge=0)):
     return await crud.read_favs(uid, limit, page)
 
+@app.get("/posts/{uid}/favs/{pid}")
+async def is_faved(*, uid: str, pid: str):
+    is_faved = await crud.is_faved(uid, pid)
+    if not is_faved:
+        raise HTTPException(status_code=404, detail="not faved")
+    return {"message": "the post is faved"}
 
 @app.delete("/posts/{uid}/favs/{pid}")
 async def delete_favs(*, uid: str, pid: str):

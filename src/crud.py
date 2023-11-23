@@ -23,7 +23,7 @@ import logging
 
 class CRUDException(Exception):
     message: str = "API error: "
-
+    code: int = 400 
     def __init__(self, message):
         self.message += message
 
@@ -93,7 +93,17 @@ async def create_post(post_create: PostCreate):
     user.save()
     return post
 
-
+  
+async def is_author(uid: str, pid: str):
+    try: 
+        post = Post.objects(id=pid).get()
+        if post.uid == uid:
+            return True
+    except DoesNotExist:
+        raise CRUDException("post does not exist")
+    return False
+  
+  
 async def read_post(pid: str) -> Dict[str, Any]:
     return Post.objects.as_pymongo().get(pk=pid)
 
@@ -111,11 +121,10 @@ async def read_posts(post_query: PostQuery, limit: int, page: int) -> List[Dict[
     if public and private:
         db_posts = BasePost.objects.filter(query)[FROM:TO].order_by("-timestamp").as_pymongo()
     elif public:
-        # only posts that are public
         db_posts = Post.objects.filter(query, is_private=False)[FROM:TO].order_by("-timestamp").as_pymongo()
     elif private:
         db_posts = BasePost.objects.filter(query, is_private=True)[FROM:TO].order_by("-timestamp").as_pymongo()
-
+        
     return db_posts
 
 
@@ -147,7 +156,15 @@ async def add_favs(uid: str, pid: str):
     user.save()
     print(user.to_mongo())
 
+    
+async def is_faved(uid: str, pid: str):
+    user = await get_user(uid)
+    post = Post.objects(id=pid).get()
+    if post in user.favs:
+        return True
+    return False
 
+  
 async def read_favs(uid: str, limit: int, page: int) -> List[Dict[str, Any]]:
     FROM, TO = limit * page, limit * (page + 1)
     user = await get_user(uid)
@@ -190,24 +207,14 @@ async def unlike_post(uid: str, pid: str):
     post.save()
     user.save()
 
-
-async def is_author(uid: str, pid: str):
-    try: 
-        post = Post.objects(id=pid).get()
-        if post.uid == uid:
-            return True
-    except DoesNotExist:
-        raise CRUDException("post does not exist")
-    return False
-
-
+    
 async def is_liked(uid: str, pid: str):
     user = await get_user(uid)
     post = Post.objects(id=pid).get()
     if post in user.liked:
         return True
     return False
-
+  
 
 async def delete_user(uid: str):
     try:
@@ -218,7 +225,7 @@ async def delete_user(uid: str):
     post = Post.objects(uid=uid).delete()
     user.delete()
 
-
+    
 async def create_snapshare(uid: str, pid: str):
     user = await get_user(uid)
     
@@ -231,7 +238,16 @@ async def create_snapshare(uid: str, pid: str):
     user.snapshare.append(snapshare)
     user.save()
 
+    
+async def is_snapshared(uid: str, pid: str):
+    user = await get_user(uid)
+    try:
+        snapshare = SnapShare.objects(uid=uid, post=post)
+    except DoesNotExist:
+        return False
+    return True
 
+  
 async def read_snapshares(uid: str, limit: int, page: int):
     user = await get_user(uid)
     FROM, TO = limit * page, limit * (page + 1)
@@ -243,15 +259,6 @@ async def read_snapshares(uid: str, limit: int, page: int):
         snapshare['post'] = post
         snapshares.append(snapshare.to_dict())
     return snapshares
-
-
-async def is_snapshared(uid: str, pid: str):
-    user = await get_user(uid)
-    try:
-        snapshare = SnapShare.objects(uid=uid, post=post)
-    except DoesNotExist:
-        return False
-    return True
 
 
 async def delete_snapshare(pid: str):
@@ -267,3 +274,4 @@ async def get_trending_topics(limit: int, page: int):
     topics = TrendingTopic.objects()[FROM:TO].order_by('-mentions')
     return [{"topic": topic.topic, "mention_count": len(topic.mentions)} for topic in topics]
 
+  
