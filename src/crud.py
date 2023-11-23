@@ -242,6 +242,7 @@ async def create_snapshare(uid: str, pid: str):
 async def is_snapshared(uid: str, pid: str):
     user = await get_user(uid)
     try:
+        post = Post.objects.get(id=pid)
         snapshare = SnapShare.objects(uid=uid, post=post)
     except DoesNotExist:
         return False
