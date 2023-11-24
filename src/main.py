@@ -22,8 +22,12 @@ async def error_handler(req: Request, exc):
     if isinstance(exc, mongoengine.DoesNotExist):
         detail = "post not found"
         code = 404
+    if isinstance(exc, mongoengine.errors.ValidationError):
+        detail = "some arguments are invalid"
+        code = 404
     if isinstance(exc, crud.CRUDException):
         code = exc.code
+        
     return JSONResponse(status_code=code, content={"detail" : detail})
             
 
@@ -184,9 +188,9 @@ async def get_snapshares(*,
     return await crud.read_snapshares(uid, limit, page)
     
 
-@app.delete("/posts/snapshares/{pid}")
-async def delete_snapshare_endpoint(pid: str):
-    await crud.delete_snapshare(pid)
+@app.delete("/posts/{uid}/snapshares/{pid}")
+async def delete_snapshare_endpoint(uid: str, pid: str):
+    await crud.delete_snapshare(uid, pid)
     return {"message": "snapshare deleted successfully"}
    
     

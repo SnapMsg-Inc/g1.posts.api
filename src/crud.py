@@ -126,7 +126,6 @@ async def read_posts(post_query: PostQuery, limit: int, page: int) -> List[Dict[
     elif private:
         db_posts = BasePost.objects.filter(query, is_private=True)[FROM:TO].order_by("-timestamp").as_pymongo()
         
-    print(f'[INFO] posts: {db_posts[0]}')
     posts = []
 
     for post in db_posts:
@@ -278,12 +277,13 @@ async def read_snapshares(uid: str, limit: int, page: int):
     return snapshares
 
 
-async def delete_snapshare(pid: str):
+async def delete_snapshare(uid: str, pid: str):
     try:
-        snapshare = SnapShare.objects(id=pid).get()
+        post = Post.objects.get(id=pid)
+        snapshare = SnapShare.objects.get(uid=uid, post=post)
     except DoesNotExist:
         raise CRUDException("snapshare does not exist")
-    post = snapshare.post
+
     post.snapshares -= 1
     post.save()
     snapshare.delete()
