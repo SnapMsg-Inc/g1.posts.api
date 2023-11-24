@@ -237,13 +237,15 @@ async def create_snapshare(uid: str, pid: str):
     snapshare = SnapShare(uid=uid, post=post).save()
     user.snapshare.append(snapshare)
     user.save()
+    post.snapshares += 1
+    post.save()
 
     
 async def is_snapshared(uid: str, pid: str):
     user = await get_user(uid)
     try:
         post = Post.objects.get(id=pid)
-        snapshare = SnapShare.objects(uid=uid, post=post)
+        snapshare = SnapShare.objects.get(uid=uid, post=post)
     except DoesNotExist:
         return False
     return True
@@ -267,6 +269,9 @@ async def delete_snapshare(pid: str):
         snapshare = SnapShare.objects(id=pid).get()
     except DoesNotExist:
         raise CRUDException("snapshare does not exist")
+    post = snapshare.post
+    post.snapshares -= 1
+    post.save()
     snapshare.delete()
 
     

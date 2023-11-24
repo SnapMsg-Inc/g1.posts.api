@@ -42,6 +42,7 @@ class Post(BasePost):
     media_uri: List[str] = ListField(StringField(), default=[])
     hashtags: List[str] = ListField(StringField(), default=[])
     likes: int = IntField(default=0, min_value=0)
+    snapshares: int = IntField(default=0, min_value=0)
     
         
 class SnapShare(BasePost):
@@ -145,6 +146,7 @@ class PostQuery(BaseModelOptional):
 class PostResponse(PostCreate):
     pid: PID = Field(validation_alias="_id")
     likes: int = 0
+    snapshares: int = 0
     timestamp: datetime
     
     class Config:
