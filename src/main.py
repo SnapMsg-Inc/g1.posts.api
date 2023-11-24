@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Query, Depends, Request, HTTPException
 from fastapi.responses import JSONResponse
-from typing import List, Annotated, Optional
+from typing import List, Annotated, Optional, Union
 from .models import Post, PostCreate, PostQuery, PostUpdate, PostResponse, SnapShareResponse
 from . import crud 
 from .models import TrendingTopic
@@ -60,7 +60,7 @@ async def create_post(*, post: PostCreate):
     return {"message" : "post created"}
 
 
-@app.get("/posts", response_model=List[PostResponse])
+@app.get("/posts", response_model=List[Union[PostResponse, SnapShareResponse]])
 async def get_posts(*,
                     post: PostQuery = Depends(), 
                     limit: int = Query(default=100, ge=0, le=100), 
