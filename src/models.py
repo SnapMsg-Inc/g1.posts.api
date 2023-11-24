@@ -43,10 +43,11 @@ class Post(BasePost):
     hashtags: List[str] = ListField(StringField(), default=[])
     likes: int = IntField(default=0, min_value=0)
     snapshares: int = IntField(default=0, min_value=0)
-    
+
         
 class SnapShare(BasePost):
     post = ReferenceField(Post, reverse_delete_rule=CASCADE) # delete document when referenced is deleted
+    
 
 # `ReferenceField` will be automatically dereferenced on access (consider efficency)
 # https://docs.mongoengine.org/apireference.html#mongoengine.fields.ReferenceField

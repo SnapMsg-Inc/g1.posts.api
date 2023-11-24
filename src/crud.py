@@ -8,6 +8,7 @@ from .models import (
     PostQuery, 
     PostUpdate, 
     PostResponse,
+    SnapShareResponse,
     TrendingTopic,
     TopicMention,
 )
@@ -125,7 +126,17 @@ async def read_posts(post_query: PostQuery, limit: int, page: int) -> List[Dict[
     elif private:
         db_posts = BasePost.objects.filter(query, is_private=True)[FROM:TO].order_by("-timestamp").as_pymongo()
         
-    return db_posts
+    print(f'[INFO] posts: {db_posts[0]}')
+    posts = []
+
+    for post in db_posts:
+        if 'post' in post:
+            post['post'] = Post.objects.get(id=post['post']).to_mongo().to_dict()
+            posts.append(SnapShareResponse(**post))
+        else:
+            posts.append(PostResponse(**post))
+    
+    return posts 
 
 
 async def update_post(pid: str, post: PostUpdate):
