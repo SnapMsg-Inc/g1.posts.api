@@ -234,6 +234,9 @@ async def create_snapshare(uid: str, pid: str):
     except DoesNotExist:
         raise CRUDException("post does not exist")
 
+    if SnapShare.objects(uid=uid, post=post).first():
+        raise CRUDException("snapshare already exist")
+
     snapshare = SnapShare(uid=uid, post=post).save()
     user.snapshare.append(snapshare)
     user.save()
