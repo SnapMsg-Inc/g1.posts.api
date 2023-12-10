@@ -96,7 +96,7 @@ async def read_posts(post_query: PostQuery, limit: int, page: int) -> List[Dict[
     query = get_mongo_query(post_query)
     # unpleasant workarround for show unblocked + blocked posts
     # TODO: find generic way 
-    query &= (Q(**{"is_blocked": False}) || Q(**{"is_blocked": blocked}))
+    query &= (Q(**{"is_blocked": False}) | Q(**{"is_blocked": blocked}))
     db_posts = [] 
 
     if public and private:

@@ -142,7 +142,7 @@ class PostQuery(BaseModelOptional):
     uid: List[str] = Field(Query([])) # author's uid
     text: Optional[Text] = None
     hashtags: List[Hashtag] = Field(Query([]))
-    is_blocked: bool = False
+    blocked: bool = False
     private: bool = False
     public: bool = True # show the publics by default
    
@@ -151,6 +151,7 @@ class PostResponse(PostCreate):
     pid: PID = Field(validation_alias="_id")
     likes: int = 0
     snapshares: int = 0
+    is_blocked: bool
     timestamp: datetime
     
     class Config:
@@ -162,6 +163,7 @@ class SnapShareResponse(BaseModel):
     uid: str 
     post: PostResponse
     is_private: bool
+    is_blocked: bool
     timestamp: datetime
     
     class Config:
