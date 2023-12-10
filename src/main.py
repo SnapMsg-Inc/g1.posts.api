@@ -60,7 +60,7 @@ async def root():
 @app.post("/posts", status_code=201)
 async def create_post(*, post: PostCreate):
     db_post = await crud.create_post(post)
-    await crud.update_trending_topics(post)
+    await crud.update_trending_topics(post.hashtags)
     return {"message" : "post created"}
 
 
@@ -79,7 +79,6 @@ async def get_post(*, pid: str):
 
 @app.patch("/posts/{pid}")
 async def update_post(*, pid: str, post: PostUpdate):
-    print(f"[POST]")
     if not post or not post.__dict__:
         return {"message", "nothing to update"}
     await crud.update_post(pid, post)
@@ -194,5 +193,3 @@ async def delete_snapshare_endpoint(uid: str, pid: str):
     return {"message": "snapshare deleted successfully"}
    
     
-
-

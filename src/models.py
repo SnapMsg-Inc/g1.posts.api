@@ -25,6 +25,7 @@ from collections.abc import Iterable
 class BasePost(Document): 
     uid: str = StringField(required=True)  # author uid
     is_private: bool = BooleanField(default=True)
+    is_blocked: bool = BooleanField(default=False)
     timestamp = DateTimeField(default=datetime.utcnow)
 
     meta = {
@@ -134,12 +135,14 @@ class PostUpdate(BaseModelOptional):
     media_uri: Optional[List[str]] = []
     hashtags: Optional[List[Hashtag]] = None
     is_private: Optional[bool] = None
+    is_blocked: Optional[bool] = None
 
 
 class PostQuery(BaseModelOptional):
     uid: List[str] = Field(Query([])) # author's uid
     text: Optional[Text] = None
     hashtags: List[Hashtag] = Field(Query([]))
+    blocked: bool = False
     private: bool = False
     public: bool = True # show the publics by default
    
@@ -148,6 +151,7 @@ class PostResponse(PostCreate):
     pid: PID = Field(validation_alias="_id")
     likes: int = 0
     snapshares: int = 0
+    is_blocked: bool
     timestamp: datetime
     
     class Config:
@@ -159,7 +163,9 @@ class SnapShareResponse(BaseModel):
     uid: str 
     post: PostResponse
     is_private: bool
+    is_blocked: bool
     timestamp: datetime
     
     class Config:
         allow_population_by_field_name = True
+

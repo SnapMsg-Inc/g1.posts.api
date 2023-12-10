@@ -40,12 +40,10 @@ def get_mongo_query(post_query: PostQuery) -> Dict[str, Any]:
             query &= Q(**{f"{k}__contains" : v})
         elif isinstance(v, list):
             expr = map(lambda item: f"Q({k}__contains='{item}')", v)
-            print(f"[INFO] expr: {expr}")
             query &= (eval(" | ".join(expr)))
         else:
-            # ignore other type than list or str
+            # ignore other type than list, str or bool
             pass
-
     return query 
 
 
@@ -53,32 +51,9 @@ async def get_user(uid: str):
     try:
         user = User.objects.get(uid=uid)
     except DoesNotExist:
-        print("[DEBUG] user doesnt exists")
+        print("[DEBUG] user does not exist")
         user = User(uid=uid).save() # init one if does not exist
     return user 
-
-
-async def get_trending_topic(topic: str):
-    try:
-        trending = TrendingTopic.objects.get(topic=topic)
-    except DoesNotExist:
-        print("[DEBUG] trending doesnt exists")
-        trending = TrendingTopic(topic=topic).save() # init one if does not exist
-    return trending 
-
-
-async def update_trending_topics(post: PostQuery):
-    # try:
-    for topic in post.hashtags:
-        print("HERE")
-        mention = TopicMention()
-        mention.save()
-        trending_topic = await get_trending_topic(topic)
-        trending_topic.mentions.append(mention)
-        trending_topic.last_mentioned = datetime.utcnow
-        trending_topic.save()
-    # except Exception as e:
-        # logging.error(f"error updating trending topic: {e}")
 
 
 async def create_post(post_create: PostCreate):
@@ -101,7 +76,8 @@ async def is_author(uid: str, pid: str):
         if post.uid == uid:
             return True
     except DoesNotExist:
-        raise CRUDException("post does not exist")
+        #raise CRUDException("post does not exist")
+        pass
     return False
   
   
@@ -113,10 +89,14 @@ async def read_posts(post_query: PostQuery, limit: int, page: int) -> List[Dict[
     print(f"[INFO] posts: {post_query.__dict__}")
     public = post_query.__dict__.pop("public")
     private = post_query.__dict__.pop("private")
+    blocked = post_query.__dict__.pop("blocked")
 
     FROM, TO = limit * page, limit * (page + 1)
 
     query = get_mongo_query(post_query)
+    # unpleasant workarround for show unblocked + blocked posts
+    # TODO: find generic way 
+    query &= (Q(**{"is_blocked": False}) | Q(**{"is_blocked": blocked}))
     db_posts = [] 
 
     if public and private:
@@ -181,6 +161,8 @@ async def read_favs(uid: str, limit: int, page: int) -> List[Dict[str, Any]]:
     favs = []
 
     for post in user.favs[FROM:TO]:
+        if post.is_blocked:
+            continue
         favs.append(post.to_mongo().to_dict())
     return favs
 
@@ -270,6 +252,8 @@ async def read_snapshares(uid: str, limit: int, page: int):
     snapshares = []
 
     for db_snapshare in user.snapshare[FROM:TO]:
+        if db_snapshare.is_blocked:
+            continue
         post = db_snapshare.post.to_mongo()
         snapshare = db_snapshare.to_mongo()
         snapshare['post'] = post
@@ -294,4 +278,22 @@ async def get_trending_topics(limit: int, page: int):
     topics = TrendingTopic.objects()[FROM:TO].order_by('-mentions')
     return [{"topic": topic.topic, "mention_count": len(topic.mentions)} for topic in topics]
 
-  
+ 
+async def get_trending_topic(topic: str):
+    try:
+        trending = TrendingTopic.objects.get(topic=topic)
+    except DoesNotExist:
+        print("[DEBUG] topic doesnt exists")
+        trending = TrendingTopic(topic=topic).save() # init one if does not exist
+    return trending 
+
+
+async def update_trending_topics(hashtags: List[str]):
+    for topic in hashtags:
+        mention = TopicMention(topic)
+        mention.save()
+        trending_topic = await get_trending_topic(topic)
+        trending_topic.mentions.append(mention)
+        trending_topic.last_mentioned = datetime.utcnow
+        trending_topic.save()
+
