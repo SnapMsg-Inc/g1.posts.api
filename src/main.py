@@ -59,8 +59,10 @@ async def root():
 
 @app.post("/posts", status_code=201)
 async def create_post(*, post: PostCreate):
+    span = tracer.trace('posts.create')  # span is started once created
     db_post = await crud.create_post(post)
     await crud.update_trending_topics(post.hashtags)
+    span.finish()
     return {"message" : "post created"}
 
 
