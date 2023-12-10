@@ -87,27 +87,19 @@ async def read_post(pid: str) -> Dict[str, Any]:
 
 async def read_posts(post_query: PostQuery, limit: int, page: int) -> List[Dict[str, Any]]:
     print(f"[INFO] posts: {post_query.__dict__}")
-    public = post_query.__dict__.pop("public")
     private = post_query.__dict__.pop("private")
     blocked = post_query.__dict__.pop("blocked")
 
     FROM, TO = limit * page, limit * (page + 1)
 
     query = get_mongo_query(post_query)
-    # unpleasant workarround for show unblocked + blocked posts
-    # TODO: find generic way 
-    query &= (Q(**{"is_blocked": False}) | Q(**{"is_blocked": blocked}))
-    db_posts = [] 
-
-    if public and private:
-        db_posts = BasePost.objects.filter(query)[FROM:TO].order_by("-timestamp").as_pymongo()
-    elif public:
-        db_posts = Post.objects.filter(query, is_private=False)[FROM:TO].order_by("-timestamp").as_pymongo()
-    elif private:
-        db_posts = BasePost.objects.filter(query, is_private=True)[FROM:TO].order_by("-timestamp").as_pymongo()
+    query &= Q(**{"is_private__in": [False, private]}) # show publics and private if flag set
+    query &= Q(**{"is_blocked__in": [False, blocked]}) # show unblocked and blocked if flag set
+    db_posts = BasePost.objects.filter(query)[FROM:TO].order_by("-timestamp").as_pymongo()
         
     posts = []
 
+    # dereference posts
     for post in db_posts:
         if 'post' in post:
             post['post'] = Post.objects.get(id=post['post']).to_mongo().to_dict()
@@ -154,7 +146,7 @@ async def is_faved(uid: str, pid: str):
         return True
     return False
 
-  
+ 
 async def read_favs(uid: str, limit: int, page: int) -> List[Dict[str, Any]]:
     FROM, TO = limit * page, limit * (page + 1)
     user = await get_user(uid)
@@ -252,7 +244,7 @@ async def read_snapshares(uid: str, limit: int, page: int):
     snapshares = []
 
     for db_snapshare in user.snapshare[FROM:TO]:
-        if db_snapshare.is_blocked:
+        if db_snapshare.is_blocked or db_snapshare.post.is_blocked:
             continue
         post = db_snapshare.post.to_mongo()
         snapshare = db_snapshare.to_mongo()

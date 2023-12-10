@@ -144,7 +144,6 @@ class PostQuery(BaseModelOptional):
     hashtags: List[Hashtag] = Field(Query([]))
     blocked: bool = False
     private: bool = False
-    public: bool = True # show the publics by default
    
  
 class PostResponse(PostCreate):
