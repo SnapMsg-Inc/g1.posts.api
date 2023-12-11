@@ -7,12 +7,21 @@ from .models import TrendingTopic
 
 import mongoengine
 
+from datadog import initialize, statsd
 from ddtrace.runtime import RuntimeMetrics
+from ddtrace import tracer
 import datadog 
 
 RuntimeMetrics.enable()
 
 app = FastAPI()
+
+
+options = {
+    'statsd_host': 'datadog-agent',
+    'statsd_port': 8125
+}
+initialize(**options)
 
 
 @app.exception_handler(Exception)
@@ -59,10 +68,11 @@ async def root():
 
 @app.post("/posts", status_code=201)
 async def create_post(*, post: PostCreate):
-    span = tracer.trace('posts.create')  # span is started once created
     db_post = await crud.create_post(post)
     await crud.update_trending_topics(post.hashtags)
-    span.finish()
+    for hashtag in post.hashtags:
+        print(f"sending {hashtag}...")
+        statsd.increment(f"{hashtag}.increment", tags=["env:prod"])
     return {"message" : "post created"}
 
 

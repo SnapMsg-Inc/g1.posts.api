@@ -282,7 +282,7 @@ async def get_trending_topic(topic: str):
 
 async def update_trending_topics(hashtags: List[str]):
     for topic in hashtags:
-        mention = TopicMention(topic)
+        mention = TopicMention()
         mention.save()
         trending_topic = await get_trending_topic(topic)
         trending_topic.mentions.append(mention)
