@@ -32,7 +32,7 @@ spec:
         - name: http
           containerPort: 3001
           protocol: TCP
-		
+
 ---
 
 apiVersion: v1
