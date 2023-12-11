@@ -70,9 +70,12 @@ async def root():
 async def create_post(*, post: PostCreate):
     db_post = await crud.create_post(post)
     await crud.update_trending_topics(post.hashtags)
-    for hashtag in post.hashtags:
-        print(f"sending {hashtag}...")
-        statsd.increment(f"{hashtag}.increment", tags=["env:prod"])
+    current_span = tracer.current_span()
+    if current_span:
+        for hashtag in post.hashtags:
+            print(f"sending {hashtag}...")
+            current_span.set_tag("post.hashtag", hashtag)
+            #statsd.set(f"hashtags", hashtag, tags=["hashtags"])
     return {"message" : "post created"}
 
 
