@@ -15,6 +15,7 @@ dev:
       - 3000:3000
       - 27017:posts-db-mongodb:27017
       - 8126:datadog-agent:8126
+      - 8125:datadog-agent:8125
     sync:
       - .:/usr/snapmsg-posts
 
