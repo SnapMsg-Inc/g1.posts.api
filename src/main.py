@@ -7,10 +7,9 @@ from .models import TrendingTopic
 
 import mongoengine
 
-from datadog import initialize, statsd
+from datadog import initialize, DogStatsd
 from ddtrace.runtime import RuntimeMetrics
 from ddtrace import tracer
-import datadog 
 
 RuntimeMetrics.enable()
 
@@ -19,9 +18,10 @@ app = FastAPI()
 
 options = {
     'statsd_host': 'datadog-agent',
-    'statsd_port': 8125
+    'statsd_port': 8125,
 }
 initialize(**options)
+statsd = DogStatsd()
 
 
 @app.exception_handler(Exception)
@@ -39,6 +39,7 @@ async def error_handler(req: Request, exc):
         
     return JSONResponse(status_code=code, content={"detail" : detail})
             
+
 
 #@app.on_event("startup")
 #def init_db_client():
@@ -70,12 +71,12 @@ async def root():
 async def create_post(*, post: PostCreate):
     db_post = await crud.create_post(post)
     await crud.update_trending_topics(post.hashtags)
-    current_span = tracer.current_span()
-    if current_span:
-        for hashtag in post.hashtags:
-            print(f"sending {hashtag}...")
-            current_span.set_tag("post.hashtag", hashtag)
-            #statsd.set(f"hashtags", hashtag, tags=["hashtags"])
+
+    statsd.increment(metric="snapmsg.posted")
+
+    for hashtag in post.hashtags:
+        statsd.increment(metric="hashtags.used", tags=[f'hashtag:{hashtag[1:]}'])
+        print(f"sending {hashtag}...")
     return {"message" : "post created"}
 
 
