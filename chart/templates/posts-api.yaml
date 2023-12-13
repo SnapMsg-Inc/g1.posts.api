@@ -45,7 +45,7 @@ spec:
   type: ClusterIP
   ports:
   - protocol: TCP
-    port: 8080
+    port: 3001 
     targetPort: 3001
     name: http
   selector: # labels to match pods
