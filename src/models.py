@@ -145,7 +145,6 @@ class PostQuery(BaseModelOptional):
     blocked: bool = False
     private: bool = False
    
- 
 class PostResponse(PostCreate):
     pid: PID = Field(validation_alias="_id")
     likes: int = 0
@@ -168,3 +167,8 @@ class SnapShareResponse(BaseModel):
     class Config:
         allow_population_by_field_name = True
 
+
+class PostStatsResponse(BaseModel):
+    total_posts: int
+    total_likes: int
+    total_snapshares: int

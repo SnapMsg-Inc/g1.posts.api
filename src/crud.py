@@ -289,3 +289,17 @@ async def update_trending_topics(hashtags: List[str]):
         trending_topic.last_mentioned = datetime.utcnow
         trending_topic.save()
 
+
+#Post.objects(timestamp__gte=start, timestamp__lte=end).sum("snapshares")
+#Post.objects(timestamp__gte=start, timestamp__lte=end).sum("likes")
+#Post.objects(timestamp__gte=start, timestamp__lte=end).count()
+async def get_stats(uid: str, start_date: datetime, end_date: datetime):
+
+    total_posts = BasePost.objects(uid=uid, timestamp__gte=start_date, timestamp__lte=end_date).count()
+    total_likes = Post.objects(uid=uid, timestamp__gte=start_date, timestamp__lte=end_date).sum('likes')
+    total_snapshares = Post.objects(uid=uid, timestamp__gte=start_date, timestamp__lte=end_date).sum('snapshares')
+    return {
+        'total_posts': total_posts,
+        'total_likes': total_likes,
+        'total_snapshares': total_snapshares,
+    }

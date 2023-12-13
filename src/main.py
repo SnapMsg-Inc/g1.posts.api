@@ -1,10 +1,10 @@
 from fastapi import FastAPI, Query, Depends, Request, HTTPException
 from fastapi.responses import JSONResponse
 from typing import List, Annotated, Optional, Union, Any
-from .models import Post, PostCreate, PostQuery, PostUpdate, PostResponse, SnapShareResponse
+from .models import Post, PostCreate, PostQuery, PostUpdate, PostResponse, SnapShareResponse, PostStatsResponse
 from . import crud 
 from .models import TrendingTopic
-
+from datetime import datetime
 import mongoengine
 
 from datadog import initialize, DogStatsd
@@ -209,3 +209,23 @@ async def delete_snapshare_endpoint(uid: str, pid: str):
     return {"message": "snapshare deleted successfully"}
    
     
+# GET /posts/stats/{uid}?start=<some_date>&end=<some_date>  (en el micro servicio)
+
+
+def parse_iso_format(date_str):
+    try:
+        # Intenta parsear la fecha en formato ISO (YYYY-MM-DD)
+        return datetime.strptime(date_str, '%Y-%m-%d')
+    except ValueError as e:
+        # Maneja el error si la cadena no está en el formato esperado
+        raise ValueError(f"Fecha no válida: {e}")
+    
+
+@app.get("/posts/stats/{uid}", response_model=PostStatsResponse)
+async def get_stats_endpoint(uid: str , start: str, end: str ):
+    
+    try:
+        stats = await crud.get_stats(uid, start, end)
+        return PostStatsResponse(**stats)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
