@@ -1,4 +1,4 @@
-# Users-microservice
+# Posts-microservice
 
 [![codecov](https://codecov.io/gh/SnapMsg-Inc/g1.users.api/graph/badge.svg?token=ZAMM2TX3MT)](https://codecov.io/gh/SnapMsg-Inc/g1.users.api)
 
