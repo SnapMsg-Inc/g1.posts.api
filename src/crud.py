@@ -206,7 +206,7 @@ async def delete_user(uid: str):
     except DoesNotExist:
         raise CRUDException("user does not exist")
     # delete all posts with user as author 
-    post = Post.objects(uid=uid).delete()
+    post = BasePost.objects(uid=uid).delete()
     user.delete()
 
     
