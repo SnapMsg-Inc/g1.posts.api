@@ -221,7 +221,7 @@ def parse_iso_format(date_str):
         raise ValueError(f"Fecha no válida: {e}")
     
 
-@app.get("/posts/stats/{uid}", response_model=PostStatsResponse)
+@app.get("/posts/{uid}/stats", response_model=PostStatsResponse)
 async def get_stats_endpoint(uid: str , start: str, end: str ):
     
     try:
