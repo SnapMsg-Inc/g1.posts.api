@@ -24,7 +24,8 @@ Before you begin, ensure you have met the following requirements, which are also
 To run the program, execute the following command:
 
 ```sh
-Make run-local```
+make help
+```
 
 ## License
 
