@@ -19,4 +19,3 @@ Inspiration, code snippets, etc.:
 - [FastAPI Documentation](https://fastapi.tiangolo.com/)
 - [Taller de Programación 2](https://taller-de-programacion-2.github.io/)
 - [Okteto](https://okteto.com/docs/)
-```
