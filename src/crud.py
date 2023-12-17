@@ -1,16 +1,30 @@
 # from .database import db
-from .models import User, Post, PostCreate, PostQuery, PostUpdate, PostResponse
+from .models import (
+    User, 
+    BasePost, 
+    Post, 
+    SnapShare,
+    PostCreate, 
+    PostQuery, 
+    PostUpdate, 
+    PostResponse,
+    SnapShareResponse,
+    TrendingTopic,
+    TopicMention,
+)
 from typing import List, Dict, Any 
 from collections.abc import Iterable
+from mongoengine.queryset.visitor import Q
 from mongoengine import DoesNotExist
+
+from datetime import datetime, timedelta
 
 import logging
 
-MAX_FEED = 250
 
 class CRUDException(Exception):
     message: str = "API error: "
-
+    code: int = 400 
     def __init__(self, message):
         self.message += message
 
@@ -20,33 +34,26 @@ class CRUDException(Exception):
 
 
 def get_mongo_query(post_query: PostQuery) -> Dict[str, Any]:
-    mongo_query = {}
+    query = Q() 
     for k, v in post_query.model_dump().items():
-        if isinstance(v, Iterable):
-            for item in v:
-                mongo_query[f"{k}__contains"] = item
+        if isinstance(v, str):
+            query &= Q(**{f"{k}__contains" : v})
+        elif isinstance(v, list):
+            expr = map(lambda item: f"Q({k}__contains='{item}')", v)
+            query &= (eval(" | ".join(expr)))
         else:
-            mongo_query[f"{k}__contains"] = v
-    return mongo_query
+            # ignore other type than list, str or bool
+            pass
+    return query 
 
 
 async def get_user(uid: str):
     try:
         user = User.objects.get(uid=uid)
     except DoesNotExist:
+        print("[DEBUG] user does not exist")
         user = User(uid=uid).save() # init one if does not exist
     return user 
-
-
-async def populate_feed(post: Post):
-    user = await get_user(post.uid)
-    
-    for follower in user.followers:
-        # establish a limit in length of feed
-        if len(follower.feed) > MAX_FEED:
-            follower.feed.pop(0)
-        follower.feed.append(post)
-        follower.save()
 
 
 async def create_post(post_create: PostCreate):
@@ -62,92 +69,64 @@ async def create_post(post_create: PostCreate):
     user.save()
     return post
 
-
+  
+async def is_author(uid: str, pid: str):
+    try: 
+        post = Post.objects(id=pid).get()
+        if post.uid == uid:
+            return True
+    except DoesNotExist:
+        #raise CRUDException("post does not exist")
+        pass
+    return False
+  
+  
 async def read_post(pid: str) -> Dict[str, Any]:
     return Post.objects.as_pymongo().get(pk=pid)
 
 
 async def read_posts(post_query: PostQuery, limit: int, page: int) -> List[Dict[str, Any]]:
     print(f"[INFO] posts: {post_query.__dict__}")
-    public = post_query.__dict__.pop("public")
     private = post_query.__dict__.pop("private")
+    blocked = post_query.__dict__.pop("blocked")
 
-    if public and private:
-        limit /= 2
     FROM, TO = limit * page, limit * (page + 1)
-    
+
     query = get_mongo_query(post_query)
+    query &= Q(**{"is_private__in": [False, private]}) # show publics and private if flag set
+    query &= Q(**{"is_blocked__in": [False, blocked]}) # show unblocked and blocked if flag set
+    db_posts = BasePost.objects.filter(query)[FROM:TO].order_by("-timestamp").as_pymongo()
+        
+    posts = []
 
-    db_posts = [] 
-    if public:
-        db_posts += Post.objects.filter(is_private=False, **query)[FROM:TO].as_pymongo()
-    if private:
-        db_posts += Post.objects.filter(is_private=True, **query)[FROM:TO].as_pymongo()
-
-    print(f"[INFO] posts: {db_posts}")
-    return db_posts
+    # dereference posts
+    for post in db_posts:
+        if 'post' in post:
+            post['post'] = Post.objects.get(id=post['post']).to_mongo().to_dict()
+            posts.append(SnapShareResponse(**post))
+        else:
+            posts.append(PostResponse(**post))
+    
+    return posts 
 
 
 async def update_post(pid: str, post: PostUpdate):
     try:
-        # post = Post.objects(id=pid).get()
         Post.objects(id=pid).get().update(**post.model_dump())
     except DoesNotExist:
         raise CRUDException("post doesnt exist")
 
 
 async def delete_post(pid: str):
-    post = Post.objects(id=pid).get()
+    try:
+        post = Post.objects(id=pid).get()
+    except DoesNotExist:
+        raise CRUDException("post does not exist")
     post.delete()
 
 
-async def subscribe_feed(uid: str, otheruid: str):
-    # save a reference to `uid` in `otheruid`, in order to populate feed 
-    user = await get_user(uid)
-    otheruser = await get_user(otheruid)
-
-    if uid == otheruid:
-        raise CRUDException("cannot subscribe to yourself")
-
-    if user in otheruser.followers:
-        raise CRUDException("subscription already exist")
-    
-    to_push = otheruser.public + otheruser.private
-    user.feed += to_push
-    user.save()
-    otheruser.followers.append(user)
-    otheruser.save()
-
-
-async def unsubscribe_feed(uid: str, otheruid: str):
-    user = await get_user(uid)
-    otheruser = await get_user(otheruid)
-    
-    if user not in otheruser.followers:
-        raise CRUDException("subscription doesnt exist")
-
-    to_pull = otheruser.public + otheruser.private
-    user.update(pull_all__feed=to_pull)
-    user.save()
-    otheruser.followers.remove(user)
-    #otheruser.update(pull__followers=user)
-    otheruser.save()
-
-
-async def get_feed(uid: str, limit: int, page: int) -> List[Dict[str, Any]]:
-    FROM, TO = limit * page, limit * (page + 1)
-    user = await get_user(uid)
-    feed = []
-
-    for post in user.feed[FROM:TO]:
-        feed.append(post.to_mongo().to_dict())
-
-    feed.sort(key=lambda x: x["timestamp"])
-    return feed 
-
-
 async def get_recommended(uid: str, limit: int, page: int) -> List[Dict[str, Any]]:
-    return [] 
+    return []
 
 
 async def add_favs(uid: str, pid: str):
@@ -159,13 +138,23 @@ async def add_favs(uid: str, pid: str):
     user.save()
     print(user.to_mongo())
 
+    
+async def is_faved(uid: str, pid: str):
+    user = await get_user(uid)
+    post = Post.objects(id=pid).get()
+    if post in user.favs:
+        return True
+    return False
 
+ 
 async def read_favs(uid: str, limit: int, page: int) -> List[Dict[str, Any]]:
     FROM, TO = limit * page, limit * (page + 1)
     user = await get_user(uid)
     favs = []
-    print(user.to_mongo())
+
     for post in user.favs[FROM:TO]:
+        if post.is_blocked:
+            continue
         favs.append(post.to_mongo().to_dict())
     return favs
 
@@ -195,10 +184,122 @@ async def unlike_post(uid: str, pid: str):
     user = await get_user(uid)
     post = Post.objects(id=pid).get()
     if post not in user.liked:
-        raise CRUDException("like doesnt exist")
+        raise CRUDException("like does not exist")
 
     post.likes -= 1
     user.liked.remove(post)
     post.save()
     user.save()
 
+    
+async def is_liked(uid: str, pid: str):
+    user = await get_user(uid)
+    post = Post.objects(id=pid).get()
+    if post in user.liked:
+        return True
+    return False
+  
+
+async def delete_user(uid: str):
+    try:
+        user = User.objects(uid=uid).get()
+    except DoesNotExist:
+        raise CRUDException("user does not exist")
+    # delete all posts with user as author 
+    post = BasePost.objects(uid=uid).delete()
+    user.delete()
+
+    
+async def create_snapshare(uid: str, pid: str):
+    user = await get_user(uid)
+    
+    try:
+        post = Post.objects.get(id=pid)
+    except DoesNotExist:
+        raise CRUDException("post does not exist")
+
+    if SnapShare.objects(uid=uid, post=post).first():
+        raise CRUDException("snapshare already exist")
+
+    snapshare = SnapShare(uid=uid, post=post).save()
+    user.snapshare.append(snapshare)
+    user.save()
+    post.snapshares += 1
+    post.save()
+
+    
+async def is_snapshared(uid: str, pid: str):
+    user = await get_user(uid)
+    try:
+        post = Post.objects.get(id=pid)
+        snapshare = SnapShare.objects.get(uid=uid, post=post)
+    except DoesNotExist:
+        return False
+    return True
+
+  
+async def read_snapshares(uid: str, limit: int, page: int):
+    user = await get_user(uid)
+    FROM, TO = limit * page, limit * (page + 1)
+    snapshares = []
+
+    for db_snapshare in user.snapshare[FROM:TO]:
+        if db_snapshare.is_blocked or db_snapshare.post.is_blocked:
+            continue
+        post = db_snapshare.post.to_mongo()
+        snapshare = db_snapshare.to_mongo()
+        snapshare['post'] = post
+        snapshares.append(snapshare.to_dict())
+    return snapshares
+
+
+async def delete_snapshare(uid: str, pid: str):
+    try:
+        post = Post.objects.get(id=pid)
+        snapshare = SnapShare.objects.get(uid=uid, post=post)
+    except DoesNotExist:
+        raise CRUDException("snapshare does not exist")
+
+    post.snapshares -= 1
+    post.save()
+    snapshare.delete()
+
+    
+async def get_trending_topics(limit: int, page: int):
+    FROM, TO = limit * page, limit * (page + 1)
+    topics = TrendingTopic.objects()[FROM:TO].order_by('-mentions')
+    return [{"topic": topic.topic, "mention_count": len(topic.mentions)} for topic in topics]
+
+ 
+async def get_trending_topic(topic: str):
+    try:
+        trending = TrendingTopic.objects.get(topic=topic)
+    except DoesNotExist:
+        print("[DEBUG] topic doesnt exists")
+        trending = TrendingTopic(topic=topic).save() # init one if does not exist
+    return trending 
+
+
+async def update_trending_topics(hashtags: List[str]):
+    for topic in hashtags:
+        mention = TopicMention()
+        mention.save()
+        trending_topic = await get_trending_topic(topic)
+        trending_topic.mentions.append(mention)
+        trending_topic.last_mentioned = datetime.utcnow
+        trending_topic.save()
+
+
+#Post.objects(timestamp__gte=start, timestamp__lte=end).sum("snapshares")
+#Post.objects(timestamp__gte=start, timestamp__lte=end).sum("likes")
+#Post.objects(timestamp__gte=start, timestamp__lte=end).count()
+async def get_stats(uid: str, start_date: datetime, end_date: datetime):
+
+    total_posts = BasePost.objects(uid=uid, timestamp__gte=start_date, timestamp__lte=end_date).count()
+    total_likes = Post.objects(uid=uid, timestamp__gte=start_date, timestamp__lte=end_date).sum('likes')
+    total_snapshares = Post.objects(uid=uid, timestamp__gte=start_date, timestamp__lte=end_date).sum('snapshares')
+    return {
+        'total_posts': total_posts,
+        'total_likes': total_likes,
+        'total_snapshares': total_snapshares,
+    }

@@ -8,7 +8,7 @@ metadata:
 spec:
   replicas: 1
   selector:
-    matchLabels: # service will match (forward) to pod under tagged `api`
+    matchLabels: # service will match (forward) to pod under tagged `posts-api`
       app.kubernetes.io/name: posts-api
       app.kubernetes.io/instance: {{ .Release.Name }}
   template:
@@ -32,7 +32,7 @@ spec:
         - name: http
           containerPort: 3001
           protocol: TCP
-		
+
 ---
 
 apiVersion: v1
@@ -45,7 +45,7 @@ spec:
   type: ClusterIP
   ports:
   - protocol: TCP
-    port: 8080
+    port: 3001 
     targetPort: 3001
     name: http
   selector: # labels to match pods
